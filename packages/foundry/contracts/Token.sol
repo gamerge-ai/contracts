@@ -4,9 +4,10 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Capped.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract GamergeToken is ERC20, ERC20Permit, ERC20Capped, Ownable {
+contract GamergeToken is ERC20, ERC20Permit, ERC20Capped, ERC20Burnable, Ownable {
 
     struct TokenDetails {
         string tokenName;
@@ -27,6 +28,7 @@ contract GamergeToken is ERC20, ERC20Permit, ERC20Capped, Ownable {
         uint256 _cap,
         address _burnerAddress
     ) ERC20(_name, _symbol) ERC20Permit(_name) ERC20Capped(_cap * 10 ** decimals()) Ownable(msg.sender){
+        require(_cap == _totalSupply, "cap and totalSupply mismatch");
         require(_burnerAddress != address(0), "cant be null address");
         burnerAddress = _burnerAddress;
         tokenDetails = TokenDetails({
@@ -39,10 +41,10 @@ contract GamergeToken is ERC20, ERC20Permit, ERC20Capped, Ownable {
         _mint(msg.sender, tokenDetails.tokenTotalSupply);
     }
 
-    function burn(uint256 _amount) public onlyOwner {
-        uint256 amount_to_burn = _amount * 10 ** 18;
-        _burn(burnerAddress, amount_to_burn);
-    }
+    // function burn(uint256 _amount) public onlyOwner {
+    //     uint256 amount_to_burn = _amount * 10 ** 18;
+    //     _burn(burnerAddress, amount_to_burn);
+    // }
 
     function retrieveTokenDetails() public view returns(TokenDetails memory) {
         return tokenDetails;
