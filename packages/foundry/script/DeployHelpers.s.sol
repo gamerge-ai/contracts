@@ -70,7 +70,6 @@ contract ScaffoldETHDeploy is Script {
         jsonWrite, vm.toString(deployments[i].addr), deployments[i].name
       );
     }
-
     string memory chainName;
 
     try this.getChain() returns (Chain memory chain) {
