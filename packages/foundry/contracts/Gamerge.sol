@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.20;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
@@ -10,7 +10,7 @@ contract Gamerge is ERC20, ERC20Burnable, ERC20Permit, Ownable2Step {
     event SymbolUpdated(string indexed newSymbol);
 
     string private _symbol;
-    uint256 public constant CAP = 100_000_000 * 10e18; // 100 million;
+    uint256 public constant CAP = 100_000_000 * 1e18; // 100 million;
     
     constructor() ERC20("Gamerge", "GMG") ERC20Permit("Gamerge") Ownable(msg.sender) {
         _symbol = "GMG";
