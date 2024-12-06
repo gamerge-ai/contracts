@@ -2,6 +2,7 @@
 pragma solidity 0.8.20;
 
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 contract Presale is Ownable {
 
@@ -40,11 +41,17 @@ contract Presale is Ownable {
     uint48 public constant MAX_PURCHASE_LIMIT = 1000 * 1e6;
     /// @notice Referral bonus percentage
     uint8 public constant REFERRAL_BONUS = 10; // 10% referral bonus
+    /// @notice Index of the current presale stage
+    uint8 public currentStageIndex;
+    /// @notice Start time of the presale
+    uint256 public presaleStartTime;
 
     /// @notice Array to store information about all presale stages
     PresaleStage[5] public presaleStages;
+    /// @notice Initializes the Chainlink or Oracle price aggregator interface for ETH prices.
+    AggregatorV3Interface public immutable bnbPriceAggregator;
 
-    constructor() Ownable(msg.sender) {
+    constructor(address _bnbPriceAggregator) Ownable(msg.sender) {
 
         uint16[5] memory prices = [0.01 * 1e6, 0.02 * 1e6, 0.03 * 1e6, 0.04 * 1e6, 0.05 * 1e6];
         uint88[5] memory allocations = [1_000_000 * 1e18, 1_500_000  * 1e18, 2_000_000  * 1e18, 5_000_000  * 1e18, 10_000_000  * 1e18];
@@ -62,5 +69,25 @@ contract Presale is Ownable {
             );
         }
 
+        bnbPriceAggregator = AggregatorV3Interface(_bnbPriceAggregator);
+        presaleStartTime = block.timestamp;
     }
+
+    function buyPresaleTokens() public returns(uint256, uint256) {
+
+    }
+
+    function getCurrentStage() public view returns(uint256) {
+        uint256 elapsedTime = block.timestamp - presaleStartTime;
+        uint256 cumulativeTime = 0;
+
+        for (uint256 i = 0; i < presaleStages.length; i++) {
+            cumulativeTime += presaleStages[i].cliff;
+            if (elapsedTime < cumulativeTime) {
+                return i;
+            }
+        }
+    }
+
+    receive() external payable{}
 }
