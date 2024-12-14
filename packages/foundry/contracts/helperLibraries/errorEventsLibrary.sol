@@ -11,6 +11,7 @@ library ErrorAndEventsLibrary {
 
    error PSNA(); // PSNA - presale stage not active
    error LE(); // LE - limit exceeded
+   error NullAddress();
 
 
    /*
@@ -22,4 +23,5 @@ library ErrorAndEventsLibrary {
    event PresaleContractCreated(address indexed contractAddress, address indexed owner);
    event PresaleStarted(uint256 indexed presaleStartTime, bool indexed isPresaleActive);
    event BoughtWithBnb(address indexed buyer, uint256 amountInBnb, uint256 gmgTokens);
+   event BoughtWithUsdt(address indexed buyer, uint256 amountInUsdt, uint256 gmgTokens);
 }

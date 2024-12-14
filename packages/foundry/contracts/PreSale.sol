@@ -6,8 +6,9 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/Ag
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ErrorAndEventsLibrary} from "./helperLibraries/errorEventsLibrary.sol";
 import {SafeMath} from "./helperLibraries/safeMath.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract Presale is Ownable {
+contract Presale is Ownable, ReentrancyGuard {
 
     /// @notice Details of single presale stage
     struct PresaleStage {
@@ -54,14 +55,24 @@ contract Presale is Ownable {
     /// @notice Initializes the Chainlink or Oracle price aggregator interface for ETH prices.
     AggregatorV3Interface public immutable bnbPriceAggregator;
 
+    /// @notice Initializing ErrorAndEventsLibrary for custom errors and events
     using ErrorAndEventsLibrary for *;
+    /// @notice Initializing SafeMath for arithmetic operations
     using SafeMath for *;
-    IERC20 private immutable _gmg;
 
+    /// @notice Immutable reference to the GMG ERC20 token 
+    IERC20 private immutable _gmg;
+    /// @notice Immutable reference to the USDT ERC20 token
+    IERC20 private immutable _usdt;
+
+    /// @notice Private function to check if the presale stage is active.
+    /// @dev Reverts with a custom error PSNA (Presale Stage Not Active) if the presale is inactive.
     function _isPresaleActive() view private{
         if(!isActive) revert ErrorAndEventsLibrary.PSNA(); // PSNA - presale stage not active
     }
 
+    // @notice Modifier to check whether presale stage is active before executing a function or not.
+    /// @dev Calls the private function `_isPresaleActive` to perform the check.
     modifier isPresaleActive() {
         _isPresaleActive();
         _;
@@ -71,7 +82,7 @@ contract Presale is Ownable {
         if(participants[user].totalBoughtInUsd + amount > 1000) revert ErrorAndEventsLibrary.LE();
     }
 
-    constructor(address _bnbPriceAggregator, address _gmgAddress) Ownable(msg.sender) {
+    constructor(address _bnbPriceAggregator, address _gmgAddress, address _usdtAddress) Ownable(msg.sender) {
 
         uint16[5] memory prices = [0.01 * 1e6, 0.02 * 1e6, 0.03 * 1e6, 0.04 * 1e6, 0.05 * 1e6];
         uint88[5] memory allocations = [1_000_000 * 1e18, 1_500_000  * 1e18, 2_000_000  * 1e18, 5_000_000  * 1e18, 10_000_000  * 1e18];
@@ -91,6 +102,7 @@ contract Presale is Ownable {
 
         bnbPriceAggregator = AggregatorV3Interface(_bnbPriceAggregator);
         _gmg = IERC20(_gmgAddress);
+        _usdt = IERC20(_usdtAddress);
         emit ErrorAndEventsLibrary.PresaleContractCreated(address(this), owner());
     }
 
@@ -101,30 +113,63 @@ contract Presale is Ownable {
         return (presaleStartTime, isActive);
     }
 
-    function buyWithBnb(uint8 _presaleStage, address referral) public isPresaleActive payable {
+    function buyWithBnb(uint8 _presaleStage, address referral) public isPresaleActive nonReentrant payable {
         uint256 decimals = bnbPriceAggregator.decimals().sub(6);
         (, int256 latestPrice , , ,)  = bnbPriceAggregator.latestRoundData();
         uint256 bnbInUsd = uint(latestPrice).div(10 ** decimals);
         uint256 valueInUsd = bnbInUsd.mul(msg.value);
-
         _limitExceeded(msg.sender, valueInUsd);
-        uint256 amountToReferral = (msg.value.mul(10)).div(100);
-        uint256 amountToContract = msg.value.sub(amountToReferral);
         uint256 gmgTokens = valueInUsd.div(presaleStages[_presaleStage].pricePerToken);
 
-        individualReferralAmount[referral] = individualReferralAmount[referral].add(amountToReferral);
+        uint256 amountToReferral;
+        uint256 amountToContract;
+        if(referral == address(0)) {
+            amountToContract = msg.value;
+        } else {
+            amountToReferral = (msg.value.mul(10)).div(100);
+            amountToContract = msg.value.sub(amountToReferral);
+            individualReferralAmount[referral] = individualReferralAmount[referral].add(amountToReferral);
+            (bool success, ) = referral.call{value: amountToReferral}("");
+            require(success, "BNB transfer failed to Referral");
+        }
+
         participants[msg.sender].totalAllocation = participants[msg.sender].totalAllocation.add(gmgTokens);
         participants[msg.sender].totalBoughtInUsd = participants[msg.sender].totalBoughtInUsd.add(valueInUsd);
-
         totalBnb = totalBnb.add(amountToContract);
 
         _gmg.transfer(msg.sender, gmgTokens);
+
         emit ErrorAndEventsLibrary.BoughtWithBnb(msg.sender, msg.value, gmgTokens);
     }
 
-    function buyWithUsdt() public isPresaleActive payable {
+    function buyWithUsdt(uint8 _presaleStage, uint256 usdtAmount, address referral) public isPresaleActive nonReentrant {
+        
+        bool success = _usdt.transferFrom(msg.sender, address(this), usdtAmount);
+        require(success, "USDT transfer failed to Contract");
+        _limitExceeded(msg.sender, usdtAmount);
+        uint256 gmgTokens = usdtAmount.div(presaleStages[_presaleStage].pricePerToken);
 
+        uint256 amountToReferral;
+        uint256 amountToContract;
+        if(referral == address(0)) {
+            amountToContract = usdtAmount;
+        } else {
+            amountToReferral = (usdtAmount.mul(10)).div(100);
+            amountToContract = usdtAmount.sub(amountToReferral);
+            individualReferralAmount[referral] = individualReferralAmount[referral].add(amountToReferral);
+            bool referralSuccess = _usdt.transfer(referral, amountToReferral);
+            require(referralSuccess, "USDT transfer failed to Referral");
+        }
+
+        participants[msg.sender].totalAllocation = participants[msg.sender].totalAllocation.add(gmgTokens);
+        participants[msg.sender].totalBoughtInUsd = participants[msg.sender].totalBoughtInUsd.add(usdtAmount);
+        totalUsdt = totalUsdt.add(amountToContract);
+
+        _gmg.transfer(msg.sender, gmgTokens);
+
+        emit ErrorAndEventsLibrary.BoughtWithUsdt(msg.sender, usdtAmount, gmgTokens);
     }
+
 
     // function getCurrentStage() public view returns(uint256) {
     //     uint256 elapsedTime = block.timestamp - presaleStartTime;
