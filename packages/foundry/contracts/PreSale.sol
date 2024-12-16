@@ -20,8 +20,9 @@ contract Presale is Ownable, ReentrancyGuard {
     }
     /// @notice Details of user purchase and vesting progress
     struct Participant {
-        uint256 totalAllocation;
-        uint256 tgeReleased;
+        uint256 totalGMG;
+        uint256 withdrawnGMG;
+        mapping(uint256 => uint256) releaseOnTGE;
         uint256 vestedAmount;
         uint256 totalBoughtInUsd;
     }
@@ -133,7 +134,7 @@ contract Presale is Ownable, ReentrancyGuard {
             require(success, "BNB transfer failed to Referral");
         }
 
-        participants[msg.sender].totalAllocation = participants[msg.sender].totalAllocation.add(gmgTokens);
+        participants[msg.sender].totalGMG = participants[msg.sender].totalGMG.add(gmgTokens);
         participants[msg.sender].totalBoughtInUsd = participants[msg.sender].totalBoughtInUsd.add(valueInUsd);
         totalBnb = totalBnb.add(amountToContract);
 
@@ -161,13 +162,18 @@ contract Presale is Ownable, ReentrancyGuard {
             require(referralSuccess, "USDT transfer failed to Referral");
         }
 
-        participants[msg.sender].totalAllocation = participants[msg.sender].totalAllocation.add(gmgTokens);
+        participants[msg.sender].totalGMG = participants[msg.sender].totalGMG.add(gmgTokens);
         participants[msg.sender].totalBoughtInUsd = participants[msg.sender].totalBoughtInUsd.add(usdtAmount);
         totalUsdt = totalUsdt.add(amountToContract);
 
         _gmg.transfer(msg.sender, gmgTokens);
 
         emit ErrorAndEventsLibrary.BoughtWithUsdt(msg.sender, usdtAmount, gmgTokens);
+    }
+
+    function triggerTGE(uint8 _presaleStage) public onlyOwner nonReentrant {
+        if(presaleStartTime.add(presaleStages[_presaleStage].cliff) < block.timestamp) revert ("");
+
     }
 
 
