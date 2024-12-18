@@ -4,7 +4,8 @@ pragma solidity 0.8.20;
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IPresale} from "./helperLibraries/IPresale.sol";
+import {IPresale} from "./IPresale.sol";
+import {GMGRegistry} from "./GmgRegistry.sol";
 // import {SafeMath} from "./helperLibraries/safeMath.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
@@ -39,7 +40,6 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
 
     /// @notice Array to store information about all presale stages
     PresaleStage public presaleStage;
-    Participant[] public participants;
     /// @notice Initializes the Chainlink or Oracle price aggregator interface for ETH prices.
     AggregatorV3Interface public immutable bnbPriceAggregator;
 
@@ -64,10 +64,7 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
         _;
     }
 
-    function _limitExceeded(address user, uint256 amount) view private {
-        if(participantDetails[user].totalBoughtInUsd + amount > MAX_PURCHASE_LIMIT) revert LE();
-    }
-
+    GMGRegistry private gmgRegistry;
 
     constructor(
         uint16 _tokenPrice,
@@ -77,7 +74,8 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
         uint8 _tgePercentages,
         address _bnbPriceAggregator, 
         address _gmgAddress, 
-        address _usdtAddress
+        address _usdtAddress,
+        address _gmgRegistryAddress
         ) Ownable(msg.sender) {
 
         // uint16[5] memory prices = [0.01 * 1e6, 0.02 * 1e6, 0.03 * 1e6, 0.04 * 1e6, 0.05 * 1e6];
@@ -95,12 +93,21 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
         //         tgePercentages[i]
         //     );
         // }
-
+        gmgRegistry = GMGRegistry(_gmgRegistryAddress);
         presaleStage = PresaleStage(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages);
+        gmgRegistry.authorizePresaleContract(address(this));
         bnbPriceAggregator = AggregatorV3Interface(_bnbPriceAggregator);
         _gmg = IERC20(_gmgAddress);
         _usdt = IERC20(_usdtAddress);
         emit PresaleContractCreated(address(this), owner());
+    }
+
+    function _limitExceeded(address user, uint256 amount) view private {
+        if(gmgRegistry.getTotalBought(user) + amount > MAX_PURCHASE_LIMIT) revert LE();
+    }
+
+    function getIndividualBoughtAmount() public view returns(uint256) {
+        return gmgRegistry.getTotalBought(msg.sender);
     }
 
     function startPresale() public onlyOwner returns(uint256, bool) {
@@ -113,6 +120,7 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
     }
 
     function buyWithBnb(address referral) public isPresaleActive nonReentrant payable {
+        address participant = msg.sender;
         uint256 decimals = bnbPriceAggregator.decimals() - 6;
         (, int256 latestPrice , , ,)  = bnbPriceAggregator.latestRoundData();
         uint256 bnbInUsd = uint(latestPrice)/(10 ** decimals);
@@ -136,7 +144,8 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
             participantDetails[msg.sender].isParticipant = true;
         }
         participantDetails[msg.sender].totalGMG += gmgTokens;
-        participantDetails[msg.sender].totalBoughtInUsd += valueInUsd;
+        // participantDetails[msg.sender].totalBoughtInUsd += valueInUsd;
+        gmgRegistry.updateTotalBought(participant, valueInUsd);
         participantDetails[msg.sender].releaseOnTGE += (gmgTokens * 20) / 100; 
         totalBnb += amountToContract;
 
@@ -146,11 +155,12 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
     }
 
     function buyWithUsdt(uint256 usdtAmount, address referral) public isPresaleActive nonReentrant {
+        address participant = msg.sender;
+        _limitExceeded(participant, usdtAmount);
         uint256 gmgTokens = usdtAmount / (presaleStage.pricePerToken);
         if(gmgTokens < _gmg.balanceOf(address(this))) revert insufficient_tokens();
         bool success = _usdt.transferFrom(msg.sender, address(this), usdtAmount);
         require(success, "USDT transfer failed to Contract");
-        _limitExceeded(msg.sender, usdtAmount);
 
         uint256 amountToReferral;
         uint256 amountToContract;
@@ -168,7 +178,8 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
             participantDetails[msg.sender].isParticipant = true;
         }
         participantDetails[msg.sender].totalGMG += gmgTokens;
-        participantDetails[msg.sender].totalBoughtInUsd += usdtAmount;
+        // participantDetails[msg.sender].totalBoughtInUsd += usdtAmount;
+        gmgRegistry.updateTotalBought(participant, usdtAmount);
         participantDetails[msg.sender].releaseOnTGE += (gmgTokens * 20) / 100; 
         totalUsdt += amountToContract;
 
