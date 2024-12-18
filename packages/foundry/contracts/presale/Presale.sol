@@ -16,14 +16,17 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
     /// @notice Mapping to store referral details
     mapping(address => uint256) public individualReferralAmount;
 
-    /// @notice Allocation of tokens for presale
-    uint88 public constant PRESALE_SUPPLY = 19_500_000 * 1e18; // 19.5 million tokens
-    /// @notice Allocation of tokens for fairsale
-    uint88 public constant FAIRSALE_SUPPLY = 2_000_000 * 1e18; // 2 million tokens
+    // /// @notice Allocation of tokens for presale
+    // uint88 public constant PRESALE_SUPPLY = 19_500_000 * 1e18; // 19.5 million tokens
+    // /// @notice Allocation of tokens for fairsale
+    // uint88 public constant FAIRSALE_SUPPLY = 2_000_000 * 1e18; // 2 million tokens
+
     /// @notice Maximum purchase amount per address during presale (in USD)
     uint48 public constant MAX_PURCHASE_LIMIT = 1000 * 1e6;
     /// @notice Referral bonus percentage
     uint8 public constant REFERRAL_BONUS = 10; // 10% referral bonus
+    /// @notice bps for accurate decimals
+    uint16 private constant BPS = 100; // 1% = 100 points
     /// @notice Index of the current presale stage
     uint8 public currentStageIndex;
     /// @notice Start time of the presale
@@ -54,7 +57,7 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
     /// @notice Private function to check if the presale stage is active.
     /// @dev Reverts with a custom error PSNA (Presale Stage Not Active) if the presale is inactive.
     function _isPresaleActive() view private{
-        if(!isActive) revert PSNA(); // PSNA - presale stage not active
+        if(!isActive) revert presale_not_active(); // PSNA - presale stage not active
     }
 
     // @notice Modifier to check whether presale stage is active before executing a function or not.
@@ -78,21 +81,6 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
         address _gmgRegistryAddress
         ) Ownable(msg.sender) {
 
-        // uint16[5] memory prices = [0.01 * 1e6, 0.02 * 1e6, 0.03 * 1e6, 0.04 * 1e6, 0.05 * 1e6];
-        // uint88[5] memory allocations = [1_000_000 * 1e18, 1_500_000  * 1e18, 2_000_000  * 1e18, 5_000_000  * 1e18, 10_000_000  * 1e18];
-        // uint24[5] memory cliffs = [30 days, 45 days, 60 days, 75 days, 90 days];
-        // uint8[5] memory vestingMonths = [36, 30, 24, 18, 12];
-        // uint8[5] memory tgePercentages = [20, 15, 10, 5, 0];
-
-        // for (uint256 i = 0; i < presaleStages.length; i++) {
-        //     presaleStages[i] = PresaleStage(
-        //         prices[i],
-        //         allocations[i],
-        //         cliffs[i],
-        //         vestingMonths[i],
-        //         tgePercentages[i]
-        //     );
-        // }
         gmgRegistry = GMGRegistry(_gmgRegistryAddress);
         presaleStage = PresaleStage(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages);
         gmgRegistry.authorizePresaleContract(address(this));
@@ -103,7 +91,7 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
     }
 
     function _limitExceeded(address user, uint256 amount) view private {
-        if(gmgRegistry.getTotalBought(user) + amount > MAX_PURCHASE_LIMIT) revert LE();
+        if(gmgRegistry.getTotalBought(user) + amount > MAX_PURCHASE_LIMIT) revert max_limit_exceeded();
     }
 
     function getIndividualBoughtAmount() public view returns(uint256) {
@@ -119,39 +107,45 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
         return (presaleStartTime, isActive);
     }
 
+    function _buyLogic(address _participant, uint256 valueInUsd, uint256 gmgTokens) private {
+        Participant memory participant = participantDetails[_participant];
+        if(!participant.isParticipant) {
+            participant.isParticipant = true;
+        }
+        gmgRegistry.updateTotalBought(_participant, valueInUsd);
+        participant.totalGMG += gmgTokens;
+        uint256 releaseOnTGE = (gmgTokens * (presaleStage.tgePercentage * BPS)) / (100 * BPS);
+        participant.claimableVestedGMG += (gmgTokens - releaseOnTGE);
+        participant.releaseOnTGE += releaseOnTGE;
+
+        _gmg.transfer(_participant, gmgTokens);
+    }
+
     function buyWithBnb(address referral) public isPresaleActive nonReentrant payable {
         address participant = msg.sender;
         uint256 decimals = bnbPriceAggregator.decimals() - 6;
         (, int256 latestPrice , , ,)  = bnbPriceAggregator.latestRoundData();
         uint256 bnbInUsd = uint(latestPrice)/(10 ** decimals);
         uint256 valueInUsd = bnbInUsd * (msg.value);
-        _limitExceeded(msg.sender, valueInUsd);
+        _limitExceeded(participant, valueInUsd);
         uint256 gmgTokens = valueInUsd/(presaleStage.pricePerToken);
+        if(gmgTokens < _gmg.balanceOf(address(this))) revert insufficient_tokens();
 
         uint256 amountToReferral;
         uint256 amountToContract;
         if(referral == address(0)) {
             amountToContract = msg.value;
         } else {
-            amountToReferral = (msg.value * 10)/(100);
+            amountToReferral = (msg.value * (10 * BPS)) / (100 * BPS);
             amountToContract = msg.value - amountToReferral;
             individualReferralAmount[referral] += amountToReferral;
             (bool success, ) = referral.call{value: amountToReferral}("");
             require(success, "BNB transfer failed to Referral");
         }
-
-        if(!participantDetails[msg.sender].isParticipant) {
-            participantDetails[msg.sender].isParticipant = true;
-        }
-        participantDetails[msg.sender].totalGMG += gmgTokens;
-        // participantDetails[msg.sender].totalBoughtInUsd += valueInUsd;
-        gmgRegistry.updateTotalBought(participant, valueInUsd);
-        participantDetails[msg.sender].releaseOnTGE += (gmgTokens * 20) / 100; 
         totalBnb += amountToContract;
+        _buyLogic(participant, valueInUsd, gmgTokens);
 
-        _gmg.transfer(msg.sender, gmgTokens);
-
-        emit BoughtWithBnb(msg.sender, msg.value, gmgTokens);
+        emit BoughtWithBnb(participant, msg.value, gmgTokens);
     }
 
     function buyWithUsdt(uint256 usdtAmount, address referral) public isPresaleActive nonReentrant {
@@ -173,24 +167,15 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
             bool referralSuccess = _usdt.transfer(referral, amountToReferral);
             require(referralSuccess, "USDT transfer failed to Referral");
         }
-
-        if(!participantDetails[msg.sender].isParticipant) {
-            participantDetails[msg.sender].isParticipant = true;
-        }
-        participantDetails[msg.sender].totalGMG += gmgTokens;
-        // participantDetails[msg.sender].totalBoughtInUsd += usdtAmount;
-        gmgRegistry.updateTotalBought(participant, usdtAmount);
-        participantDetails[msg.sender].releaseOnTGE += (gmgTokens * 20) / 100; 
         totalUsdt += amountToContract;
+        _buyLogic(participant, usdtAmount, gmgTokens);
 
-        _gmg.transfer(msg.sender, gmgTokens);
-
-        emit BoughtWithUsdt(msg.sender, usdtAmount, gmgTokens);
+        emit BoughtWithUsdt(participant, usdtAmount, gmgTokens);
     }
 
     function triggerTGE() public onlyOwner nonReentrant {
         // if(presaleStartTime.add(presaleStage.cliff) < block.timestamp) revert (""); // i am not sure when to trigger this
-        if(isTgeTriggered) revert tge_triggered();
+        if(isTgeTriggered) revert tge_already_triggered();
         tgeTriggeredAt = block.timestamp;
         isTgeTriggered = true;
         emit TgeTriggered(tgeTriggeredAt, isTgeTriggered);
@@ -198,10 +183,12 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
 
     function claimTGE(address _participant) public nonReentrant {
         if(msg.sender == _participant || msg.sender == owner()) revert only_participant_or_owner();
+        Participant memory participant = participantDetails[_participant];
+        if(!participant.isParticipant) revert not_a_participant();
         if(!isTgeTriggered) revert tge_not_triggered();
         uint256 claimableGMG = participantDetails[_participant].releaseOnTGE;
-        participantDetails[_participant].releaseOnTGE = 0;
-        participantDetails[_participant].withdrawnGMG += claimableGMG;
+        participant.releaseOnTGE = 0;
+        participant.withdrawnGMG += claimableGMG;
         _gmg.transfer(_participant, claimableGMG);
         emit TgeClaimed(_participant, claimableGMG, msg.sender == owner());
     }
@@ -209,7 +196,24 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
     function claimVestingAmount(address _participant) public nonReentrant {
         if(msg.sender == _participant || msg.sender == owner()) revert only_participant_or_owner();
         if(block.timestamp < tgeTriggeredAt + presaleStage.cliff) revert cliff_period_not_ended();
-        
+        Participant memory participant = participantDetails[_participant];
+        if(participant.totalGMG <= participant.withdrawnGMG) revert everything_has_claimed();
+        uint256 totalVestingAmount = (participant.totalGMG * ((100 - presaleStage.tgePercentage) * BPS)) / (100 * BPS);
+
+        uint256 claimableMonths = participant.lastVestedClaimedAt == 0 ? 
+                                  (block.timestamp - tgeTriggeredAt) / 30 days :
+                                  (block.timestamp - participant.lastVestedClaimedAt) / 30 days;
+
+        if(claimableMonths == 0) revert nothing_to_claim();
+        uint256 monthlyClaimable = totalVestingAmount / presaleStage.vestingMonths;
+        uint256 claimableAmount = participant.claimableVestedGMG < monthlyClaimable ? 
+                                  participant.claimableVestedGMG : monthlyClaimable;
+
+        participant.claimableVestedGMG -= claimableAmount;
+        participant.withdrawnGMG += claimableAmount;
+        _gmg.transfer(_participant, claimableAmount);
+
+        emit VestingTokensClaimed(_participant, 1, msg.sender == owner(), 0);
     }
 
     receive() external payable{}
