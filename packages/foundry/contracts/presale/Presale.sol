@@ -2,13 +2,14 @@
 pragma solidity 0.8.20;
 
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
-import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/interfaces/feeds/AggregatorV3Interface.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPresale} from "./IPresale.sol";
 import {GMGRegistry} from "./GmgRegistry.sol";
 // import {SafeMath} from "./helperLibraries/safeMath.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+//@audit should inherit from Ownable2Step ✅
 contract Presale is Ownable, ReentrancyGuard, IPresale {
 
     /// @notice Mapping to store participant details
@@ -28,6 +29,7 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
     /// @notice bps for accurate decimals
     uint16 private constant BPS = 100; // 1% = 100 points
     /// @notice Index of the current presale stage
+    //@audit unused variable?
     uint8 public currentStageIndex;
     /// @notice Start time of the presale
     uint256 public presaleStartTime;
@@ -83,6 +85,7 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
 
         gmgRegistry = GMGRegistry(_gmgRegistryAddress);
         presaleStage = PresaleStage(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages);
+        //@audit this contract would have to be the owner and the owner functionalities gets locked on the gmgregistry
         gmgRegistry.authorizePresaleContract(address(this));
         bnbPriceAggregator = AggregatorV3Interface(_bnbPriceAggregator);
         _gmg = IERC20(_gmgAddress);
@@ -216,5 +219,6 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
         emit VestingTokensClaimed(_participant, 1, msg.sender == owner(), 0);
     }
 
+    //@audit Why not invoke the buyWithBnb logic inside this?
     receive() external payable{}
 }

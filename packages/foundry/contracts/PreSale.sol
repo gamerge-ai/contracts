@@ -2,7 +2,7 @@
 pragma solidity 0.8.20;
 
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
-import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/interfaces/feeds/AggregatorV3Interface.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ErrorAndEventsLibrary} from "./helperLibraries/errorEventsLibrary.sol";
 import {SafeMath} from "./helperLibraries/safeMath.sol";
@@ -58,6 +58,7 @@ contract Presale is Ownable, ReentrancyGuard {
 
     /// @notice Initializing ErrorAndEventsLibrary for custom errors and events
     using ErrorAndEventsLibrary for *;
+    //@audit Why used safeMath?
     /// @notice Initializing SafeMath for arithmetic operations
     using SafeMath for *;
 
@@ -80,6 +81,7 @@ contract Presale is Ownable, ReentrancyGuard {
     }
 
     function _limitExceeded(address user, uint256 amount) view private {
+        //@audit `1000` must be replaced with MAX_PURCHASE_LIMIT
         if(participants[user].totalBoughtInUsd + amount > 1000) revert ErrorAndEventsLibrary.LE();
     }
 
@@ -114,6 +116,7 @@ contract Presale is Ownable, ReentrancyGuard {
         return (presaleStartTime, isActive);
     }
 
+    //@audit use BPS for percentage calculations
     function buyWithBnb(uint8 _presaleStage, address referral) public isPresaleActive nonReentrant payable {
         uint256 decimals = bnbPriceAggregator.decimals().sub(6);
         (, int256 latestPrice , , ,)  = bnbPriceAggregator.latestRoundData();
