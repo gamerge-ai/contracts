@@ -9,7 +9,6 @@ import {PresaleFactory} from "./PresaleFactory.sol";
 // import {SafeMath} from "./helperLibraries/safeMath.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-//@audit should inherit from Ownable2Step ✅
 contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
 
     /// @notice Mapping to store participant details
@@ -17,20 +16,12 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
     /// @notice Mapping to store referral details
     mapping(address => uint256) public individualReferralAmount;
 
-    // /// @notice Allocation of tokens for presale
-    // uint88 public constant PRESALE_SUPPLY = 19_500_000 * 1e18; // 19.5 million tokens
-    // /// @notice Allocation of tokens for fairsale
-    // uint88 public constant FAIRSALE_SUPPLY = 2_000_000 * 1e18; // 2 million tokens
-
     /// @notice Maximum purchase amount per address during presale (in USD)
     uint48 public constant MAX_PURCHASE_LIMIT = 1000 * 1e6;
     /// @notice Referral bonus percentage
     uint8 public constant REFERRAL_BONUS = 10; // 10% referral bonus
     /// @notice bps for accurate decimals
     uint16 private constant BPS = 100; // 1% = 100 points
-    /// @notice Index of the current presale stage
-    //@audit unused variable?
-    uint8 public currentStageIndex;
     /// @notice Start time of the presale
     uint256 public presaleStartTime;
     /// @notice total bnb
@@ -48,9 +39,6 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
     /// @notice Initializes the Chainlink or Oracle price aggregator interface for ETH prices.
     AggregatorV3Interface public immutable bnbPriceAggregator;
 
-    /// @notice Initializing SafeMath for arithmetic operations
-    // using SafeMath for *;
-
     /// @notice Immutable reference to the GMG ERC20 token 
     IERC20 private immutable _gmg;
     /// @notice Immutable reference to the USDT ERC20 token
@@ -62,7 +50,7 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         if(!isActive) revert presale_not_active(); // PSNA - presale stage not active
     }
 
-    // @notice Modifier to check whether presale stage is active before executing a function or not.
+    /// @notice Modifier to check whether presale stage is active before executing a function or not.
     /// @dev Calls the private function `_isPresaleActive` to perform the check.
     modifier isPresaleActive() {
         _isPresaleActive();
@@ -86,8 +74,6 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
 
         gmgRegistry = PresaleFactory(_gmgRegistryAddress);
         presaleStage = PresaleStage(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages);
-        //@audit this contract would have to be the owner and the owner functionalities gets locked on the gmgregistry
-        // gmgRegistry.authorizePresaleContract(address(this));
         bnbPriceAggregator = AggregatorV3Interface(_bnbPriceAggregator);
         _gmg = IERC20(_gmgAddress);
         _usdt = IERC20(_usdtAddress);
