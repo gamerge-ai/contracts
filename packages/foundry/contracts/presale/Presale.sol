@@ -80,8 +80,9 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         address _bnbPriceAggregator, 
         address _gmgAddress, 
         address _usdtAddress,
-        address _gmgRegistryAddress
-        ) Ownable(0x7c8999dC9a822c1f0Df42023113EDB4FDd543266) {
+        address _gmgRegistryAddress,
+        address _owner
+        ) Ownable(_owner) {
 
         gmgRegistry = PresaleFactory(_gmgRegistryAddress);
         presaleStage = PresaleStage(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages);
@@ -159,7 +160,7 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         address participant = msg.sender;
         _limitExceeded(participant, usdtAmount);
         uint256 gmgTokens = usdtAmount / (presaleStage.pricePerToken);
-        if(gmgTokens < _gmg.balanceOf(address(this))) revert insufficient_tokens();
+        if(gmgTokens > _gmg.balanceOf(address(this))) revert insufficient_tokens();
         bool success = _usdt.transferFrom(msg.sender, address(this), usdtAmount);
         require(success, "USDT transfer failed to Contract");
 

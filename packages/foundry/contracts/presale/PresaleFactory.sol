@@ -33,7 +33,7 @@ contract PresaleFactory is Ownable {
         address _gmgAddress, 
         address _usdtAddress
     ) public onlyOwner returns(address){
-        Presale newPresale = new Presale(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, _bnbPriceAggregator, _gmgAddress, _usdtAddress, address(this));
+        Presale newPresale = new Presale(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, _bnbPriceAggregator, _gmgAddress, _usdtAddress, address(this), msg.sender);
         authorizedPresale[address(newPresale)] = true;
         emit newPresaleCreated(address(newPresale));
         return address(newPresale);

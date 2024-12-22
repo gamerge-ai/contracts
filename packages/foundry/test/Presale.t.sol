@@ -69,8 +69,9 @@ contract PresaleTest is Test {
         vm.stopPrank();
     }
 
-    function testFuzz_BuyWithBnb() public {
-        uint256 bnbAmount = 1 * 1e10;
+    function testFuzz_BuyWithBnb(uint256 bnbAmount) public {
+        // uint256 bnbAmount = 1 * 1e10;
+        vm.assume(bnbAmount < 1 * 1e10);
         uint256 bnbInUsd = 600 * 1e6;
         uint256 expectedGMG = (bnbInUsd / tokenPrice) * 1e18;
 
@@ -81,6 +82,24 @@ contract PresaleTest is Test {
         presale.startPresale();
         vm.prank(participant);
         presale.buyWithBnb{value: bnbAmount}(referral);
- 
     }
+
+    function testFuzz_BuyWithUsdt(uint256 usdtAmount) public {
+        vm.assume(usdtAmount <= 1000 * 1e6);
+        uint256 expectedGMG = (usdtAmount / tokenPrice)*1e18;
+        vm.startPrank(owner);
+        presale.startPresale();
+        // assertEq(participant, address(presale), "not same here ");
+        usdt.approve(participant, usdtAmount);
+        usdt.transfer(participant, usdtAmount);
+        gmg.approve(address(presale), 1_000_000_000_000 * 1e18);
+        usdt.approve(address(presale), 1_000_000_000_000_000 * 1e6);
+        usdt.transfer(address(presale), 1_000_000_000_000_000 * 1e6);
+        usdt.approve(referral, (usdtAmount));
+        vm.stopPrank();
+        vm.prank(participant);
+        presale.buyWithUsdt(usdtAmount, referral);
+
+    }
+
 }
