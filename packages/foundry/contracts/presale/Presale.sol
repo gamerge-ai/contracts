@@ -2,15 +2,15 @@
 pragma solidity 0.8.20;
 
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
-import {AggregatorV3Interface} from "@chainlink/contracts/src/interfaces/feeds/AggregatorV3Interface.sol";
+import {AggregatorV3Interface} from "@chainlink/brownie/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPresale} from "./IPresale.sol";
-import {GMGRegistry} from "./GmgRegistry.sol";
+import {PresaleFactory} from "./PresaleFactory.sol";
 // import {SafeMath} from "./helperLibraries/safeMath.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 //@audit should inherit from Ownable2Step ✅
-contract Presale is Ownable, ReentrancyGuard, IPresale {
+contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
 
     /// @notice Mapping to store participant details
     mapping(address => Participant) public participantDetails;
@@ -69,7 +69,7 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
         _;
     }
 
-    GMGRegistry private gmgRegistry;
+    PresaleFactory private gmgRegistry;
 
     constructor(
         uint16 _tokenPrice,
@@ -81,15 +81,19 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
         address _gmgAddress, 
         address _usdtAddress,
         address _gmgRegistryAddress
-        ) Ownable(msg.sender) {
+        ) Ownable(0x7c8999dC9a822c1f0Df42023113EDB4FDd543266) {
 
-        gmgRegistry = GMGRegistry(_gmgRegistryAddress);
+        gmgRegistry = PresaleFactory(_gmgRegistryAddress);
         presaleStage = PresaleStage(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages);
         //@audit this contract would have to be the owner and the owner functionalities gets locked on the gmgregistry
-        gmgRegistry.authorizePresaleContract(address(this));
+        // gmgRegistry.authorizePresaleContract(address(this));
         bnbPriceAggregator = AggregatorV3Interface(_bnbPriceAggregator);
         _gmg = IERC20(_gmgAddress);
         _usdt = IERC20(_usdtAddress);
+        // presaleStartTime = block.timestamp;
+        // bool tokenSuccess = _gmg.transferFrom(msg.sender, address(this), presaleStage.allocation);
+        // require(tokenSuccess, "GMG transfer failed to contract");
+        // isActive = true;
         emit PresaleContractCreated(address(this), owner());
     }
 
@@ -129,10 +133,10 @@ contract Presale is Ownable, ReentrancyGuard, IPresale {
         uint256 decimals = bnbPriceAggregator.decimals() - 6;
         (, int256 latestPrice , , ,)  = bnbPriceAggregator.latestRoundData();
         uint256 bnbInUsd = uint(latestPrice)/(10 ** decimals);
-        uint256 valueInUsd = bnbInUsd * (msg.value);
+        uint256 valueInUsd = (bnbInUsd * (msg.value)) / 1e18;
         _limitExceeded(participant, valueInUsd);
         uint256 gmgTokens = valueInUsd/(presaleStage.pricePerToken);
-        if(gmgTokens < _gmg.balanceOf(address(this))) revert insufficient_tokens();
+        if(gmgTokens > _gmg.balanceOf(address(this))) revert insufficient_tokens();
 
         uint256 amountToReferral;
         uint256 amountToContract;
