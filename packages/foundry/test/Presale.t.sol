@@ -35,7 +35,7 @@ contract PresaleTest is Test {
         gmg.mint(owner, 1_000_000_000_000 * 1e18);
         usdt = new ERC20Mock();
         usdt.mint(owner, 1_000_000_000 * 1e18);
-        bnbPriceAggregator = new MockV3Aggregator(18, 600 * 1e18);
+        bnbPriceAggregator = new MockV3Aggregator(18, 1000 * 1e18);
 
         factory = new PresaleFactory();
         address presaleAddress = factory.initiatePresale(
@@ -70,18 +70,47 @@ contract PresaleTest is Test {
     }
 
     function testFuzz_BuyWithBnb(uint256 bnbAmount) public {
-        // uint256 bnbAmount = 1 * 1e10;
-        vm.assume(bnbAmount < 1 * 1e10);
-        uint256 bnbInUsd = 600 * 1e6;
-        uint256 expectedGMG = (bnbInUsd / tokenPrice) * 1e18;
+
+        vm.assume(bnbAmount > 1* 1e14 && bnbAmount < 1 * 1e18);
+        uint256 bnbInUsd = 1000 * 1e6;
+        uint256 valueInUsd = (bnbInUsd * bnbAmount) / 1e18; 
+        uint256 expectedGMG = (valueInUsd * 1e18) / (tokenPrice * 1e6);
 
         vm.deal(participant, bnbAmount);
-        // assertEq(gmg.balanceOf(address(presale),  );)
 
         vm.prank(owner);
         presale.startPresale();
         vm.prank(participant);
         presale.buyWithBnb{value: bnbAmount}(referral);
+
+        uint256 expectedContractBalance = bnbAmount - ((bnbAmount * 10) / 100);
+        assertEq(address(presale).balance, expectedContractBalance, "Presale contract balance mismatch");
+        assertEq(address(referral).balance, ((bnbAmount * 10) / 100));
+
+        (uint256 totalGMG, , , , , ) = presale.participantDetails(participant);  
+        assertEq(totalGMG, expectedGMG, "GMG mismatch");
+    }
+
+    function test_BuyWithBnb() public {
+
+        // vm.assume(bnbAmount == 1 * 1e18);
+        uint256 bnbAmount = 1 * 1e18;
+        uint256 bnbInUsd = 1000 * 1e6;
+        uint256 expectedGMG = (bnbInUsd * bnbAmount) / (tokenPrice * 1e6);
+
+        vm.deal(participant, bnbAmount);
+
+        vm.prank(owner);
+        presale.startPresale();
+        vm.prank(participant);
+        presale.buyWithBnb{value: bnbAmount}(referral);
+
+        uint256 expectedContractBalance = bnbAmount - ((bnbAmount * 10) / 100);
+        assertEq(address(presale).balance, expectedContractBalance, "Presale contract balance mismatch");
+        assertEq(address(referral).balance, ((bnbAmount * 10) / 100));
+
+        (uint256 totalGMG, , , , , ) = presale.participantDetails(participant);  
+        assertEq(totalGMG, expectedGMG, "GMG mismatch");
     }
 
     function testFuzz_BuyWithUsdt(uint256 usdtAmount) public {
