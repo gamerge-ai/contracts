@@ -32,10 +32,6 @@ contract PresaleFactory is Ownable2Step {
         return address(newPresale);
     }
 
-    function revokePresaleContract(address _presaleContract) external onlyOwner {
-        authorizedPresale[_presaleContract] = false;
-    }
-
     function updateTotalBought(address _participant, uint256 _amount) external {
         if(!authorizedPresale[msg.sender]) revert unauthorized_presale();
         totalBoughtInUsd[_participant] += _amount;
