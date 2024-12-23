@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
+import "forge-std/console.sol";
 import "../contracts/presale/Presale.sol";
 import "../contracts/presale/PresaleFactory.sol";
 import "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
@@ -38,11 +39,11 @@ contract PresaleTest is Test {
 
         factory = new PresaleFactory();
         address presaleAddress = factory.initiatePresale(
-            100,
-            1_000_000 * 1e18,
-            60 days,
-            12,
-            20, 
+            tokenPrice,
+            tokenAllocation,
+            cliff,
+            vestingMonths,
+            tgePercentages, 
             address(bnbPriceAggregator), 
             address(gmg),
             address(usdt)
@@ -86,20 +87,24 @@ contract PresaleTest is Test {
 
     function testFuzz_BuyWithUsdt(uint256 usdtAmount) public {
         vm.assume(usdtAmount <= 1000 * 1e6);
-        uint256 expectedGMG = (usdtAmount / tokenPrice)*1e18;
+        uint256 expectedGMG = (usdtAmount * 1e18) / (tokenPrice * 1e6);
+
         vm.startPrank(owner);
         presale.startPresale();
-        // assertEq(participant, address(presale), "not same here ");
-        usdt.approve(participant, usdtAmount);
         usdt.transfer(participant, usdtAmount);
-        gmg.approve(address(presale), 1_000_000_000_000 * 1e18);
-        usdt.approve(address(presale), 1_000_000_000_000_000 * 1e6);
-        usdt.transfer(address(presale), 1_000_000_000_000_000 * 1e6);
-        usdt.approve(referral, (usdtAmount));
         vm.stopPrank();
-        vm.prank(participant);
+
+        vm.startPrank(participant);
+        usdt.approve(address(presale), usdtAmount);
         presale.buyWithUsdt(usdtAmount, referral);
+    
+        uint256 expectedContractUsdtBalance = usdtAmount - ((usdtAmount * 10) / 100);
+        assertEq(usdt.balanceOf(address(presale)), expectedContractUsdtBalance, "Presale contract USDT balance mismatch");
+        assertEq(usdt.balanceOf(referral), ((usdtAmount * 10) / 100));
 
+        (uint256 totalGMG, , , , , ) = presale.participantDetails(participant);  
+        assertEq(totalGMG, expectedGMG, "GMG mismatch");
+
+        vm.stopPrank();
     }
-
 }
