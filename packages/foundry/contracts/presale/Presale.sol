@@ -200,14 +200,14 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         emit BoughtWithUsdt(participant, usdtAmount, gmgTokens);
     }
 
-    function triggerTGE() public onlyOwner nonReentrant {
+    function triggerTGE() public onlyOwner nonReentrant isPresaleActive{
         if(isTgeTriggered) revert tge_already_triggered();
         tgeTriggeredAt = block.timestamp;
         isTgeTriggered = true;
         emit TgeTriggered(tgeTriggeredAt, isTgeTriggered);
     }
 
-    function claimTGE(address _participant) public nonReentrant onlyOwnerOrParticipant(_participant) {
+    function claimTGE(address _participant) public nonReentrant onlyOwnerOrParticipant(_participant) isPresaleActive {
         Participant memory participant = participantDetails[_participant];
         if(!participant.isParticipant) revert not_a_participant();
         if(!isTgeTriggered) revert tge_not_triggered();
@@ -218,7 +218,7 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         emit TgeClaimed(_participant, claimableGMG, msg.sender == owner());
     }
 
-    function claimVestingAmount(address _participant) public nonReentrant onlyOwnerOrParticipant(_participant){
+    function claimVestingAmount(address _participant) public nonReentrant onlyOwnerOrParticipant(_participant) isPresaleActive{
         if(block.timestamp < tgeTriggeredAt + presaleStage.cliff) revert cliff_period_not_ended();
         Participant memory participant = participantDetails[_participant];
         if(participant.totalGMG <= participant.withdrawnGMG) revert everything_has_claimed();
