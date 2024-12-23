@@ -9,7 +9,7 @@ contract PresaleFactory is Ownable2Step {
     mapping(address => uint256) private totalBoughtInUsd;
     mapping(address => bool) public authorizedPresale;
 
-    event newPresaleCreated(address indexed presaleAddress);
+    event NewPresaleCreated(address indexed presaleAddress);
 
     error unauthorized_presale();
 
@@ -28,7 +28,7 @@ contract PresaleFactory is Ownable2Step {
     ) public onlyOwner returns(address){
         Presale newPresale = new Presale(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, _bnbPriceAggregator, _gmgAddress, _usdtAddress, address(this), msg.sender);
         authorizedPresale[address(newPresale)] = true;
-        emit newPresaleCreated(address(newPresale));
+        emit NewPresaleCreated(address(newPresale));
         return address(newPresale);
     }
 
