@@ -115,32 +115,39 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         _gmg.transfer(_participant, gmgTokens);
     }
 
-    function buyWithBnb(address referral) public isPresaleActive nonReentrant payable {
-        address participant = msg.sender;
+    function _buyWithBnb(address participant, address referral, uint256 bnbAmount) private {
         uint256 decimals = bnbPriceAggregator.decimals() - 6;
-        (, int256 latestPrice , , ,)  = bnbPriceAggregator.latestRoundData();
-        uint256 bnbInUsd = uint(latestPrice)/(10 ** decimals);
-        uint256 valueInUsd = (bnbInUsd * (msg.value)) / 1e18;
+        (, int256 latestPrice, , ,) = bnbPriceAggregator.latestRoundData();
+        uint256 bnbInUsd = uint(latestPrice) / (10 ** decimals);
+        uint256 valueInUsd = (bnbInUsd * bnbAmount) / 1e18;
+
         _limitExceeded(participant, valueInUsd);
-        uint256 gmgTokens = valueInUsd/(presaleStage.pricePerToken);
-        if(gmgTokens > _gmg.balanceOf(address(this))) revert insufficient_tokens();
+
+        uint256 gmgTokens = valueInUsd / (presaleStage.pricePerToken);
+        if (gmgTokens > _gmg.balanceOf(address(this))) revert insufficient_tokens();
 
         uint256 amountToReferral;
         uint256 amountToContract;
-        if(referral == address(0)) {
-            amountToContract = msg.value;
+        if (referral == address(0)) {
+            amountToContract = bnbAmount;
         } else {
-            amountToReferral = (msg.value * (10 * BPS)) / (100 * BPS);
-            amountToContract = msg.value - amountToReferral;
+            amountToReferral = (bnbAmount * (10 * BPS)) / (100 * BPS);
+            amountToContract = bnbAmount - amountToReferral;
             individualReferralAmount[referral] += amountToReferral;
             (bool success, ) = referral.call{value: amountToReferral}("");
             require(success, "BNB transfer failed to Referral");
         }
+
         totalBnb += amountToContract;
         _buyLogic(participant, valueInUsd, gmgTokens);
 
-        emit BoughtWithBnb(participant, msg.value, gmgTokens);
+        emit BoughtWithBnb(participant, bnbAmount, gmgTokens);
     }
+
+    function buyWithBnb(address referral) public isPresaleActive nonReentrant payable {
+        _buyWithBnb(msg.sender, referral, msg.value);
+    }
+
 
     function buyWithUsdt(uint256 usdtAmount, address referral) public isPresaleActive nonReentrant {
         address participant = msg.sender;
@@ -210,6 +217,7 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         emit VestingTokensClaimed(_participant, 1, msg.sender == owner(), 0);
     }
 
-    //@audit Why not invoke the buyWithBnb logic inside this?
-    receive() external payable{}
+    receive() external payable{
+        _buyWithBnb(msg.sender, address(0), msg.value);
+    }
 }
