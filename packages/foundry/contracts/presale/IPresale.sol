@@ -9,7 +9,7 @@ interface IPresale {
    --------------------------
    */
    /// @notice Details of single presale stage
-   struct PresaleStage {
+   struct PresaleInfo {
         uint16 pricePerToken;
         uint88 allocation;
         uint24 cliff;
@@ -32,7 +32,6 @@ interface IPresale {
    --------------------------
    */
 
-   error presale_not_active(); // PSNA - presale stage not active
    error max_limit_exceeded();
    error null_address();
    error insufficient_tokens();
@@ -51,11 +50,29 @@ interface IPresale {
    --------------------------
    */
 
-   event PresaleContractCreated(address indexed contractAddress, address indexed owner);
-   event PresaleStarted(uint256 indexed presaleStartTime, bool indexed isPresaleActive);
+   event PresaleStarted(uint256 indexed presaleStartTime);
    event BoughtWithBnb(address indexed buyer, uint256 amountInBnb, uint256 gmgTokens);
    event BoughtWithUsdt(address indexed buyer, uint256 amountInUsdt, uint256 gmgTokens);
    event TgeTriggered(uint256 triggeredAt, bool isTriggered);
    event TgeClaimed(address indexed claimedTo, uint256 amountClaimed, bool claimedByOwner);
    event VestingTokensClaimed(address indexed withdrawnTo, uint256 amountWithdrawn, bool withdrawnByOwner, uint256 remainingAmount);
+
+    /*
+   --------------------------
+   ----------FUNCTIONS----------
+   --------------------------
+   */
+
+   function initialize(
+        uint16 _tokenPrice,
+        uint88 _tokenAllocation,
+        uint24 _cliff,
+        uint8 _vestingMonths,
+        uint8 _tgePercentages,
+        address _bnbPriceAggregator, 
+        address _gmgAddress, 
+        address _usdtAddress,
+        address _gmgRegistryAddress,
+        address _owner
+        ) external;
 }

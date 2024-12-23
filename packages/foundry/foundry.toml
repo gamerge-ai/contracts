@@ -6,6 +6,7 @@ solc = "0.8.20"
 fs_permissions = [{ access = "read-write", path = "./"}]
 optimizer = true
 optimizer_runs = 10_000
+via-ir = true
 
 [rpc_endpoints]
 default_network = "http://127.0.0.1:8545"

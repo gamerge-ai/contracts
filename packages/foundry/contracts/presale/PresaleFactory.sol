@@ -1,19 +1,32 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
-import {Presale} from "./Presale.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+import "./IPresale.sol";
 
 contract PresaleFactory is Ownable2Step {
 
-    mapping(address => uint256) private totalBoughtInUsd;
-    mapping(address => bool) public authorizedPresale;
+    IPresale private immutable PRESALE_IMPL;
+    address public BNB_PA;
+    address public GMG;
+    address public immutable USDT;
 
-    event NewPresaleCreated(address indexed presaleAddress);
+    mapping(address => uint256) private totalBoughtInUsd;
+    mapping(IPresale => bool) public validPresale;
+
+    event NewPresaleCreated(IPresale indexed presaleAddress);
 
     error unauthorized_presale();
 
-    constructor() Ownable(msg.sender) {
+    constructor(IPresale _pre, address _bnbPA, address _gmg, address _usdt) Ownable(msg.sender) {
+        PRESALE_IMPL = _pre;
+
+        BNB_PA = _bnbPA;
+        GMG = _gmg;
+        USDT = _usdt;
     }
 
     function initiatePresale(
@@ -21,19 +34,29 @@ contract PresaleFactory is Ownable2Step {
         uint88 _tokenAllocation,
         uint24 _cliff,
         uint8 _vestingMonths,
-        uint8 _tgePercentages,
-        address _bnbPriceAggregator, 
-        address _gmgAddress, 
-        address _usdtAddress
-    ) public onlyOwner returns(address){
-        Presale newPresale = new Presale(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, _bnbPriceAggregator, _gmgAddress, _usdtAddress, address(this), msg.sender);
-        authorizedPresale[address(newPresale)] = true;
-        emit NewPresaleCreated(address(newPresale));
+        uint8 _tgePercentages
+    ) public onlyOwner returns(address) {
+        IPresale newPresale = IPresale(Clones.clone(address(PRESALE_IMPL)));
+        newPresale.initialize(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, BNB_PA, GMG, USDT, address(this), msg.sender);
+        require(IERC20(GMG).transferFrom(msg.sender, address(newPresale), _tokenAllocation), "GMG transfer failed to contract");
+
+        validPresale[newPresale] = true;
+
+        emit NewPresaleCreated(newPresale);
+
         return address(newPresale);
     }
 
+    function updateBNB_PA(address _newBnbPA) external onlyOwner {
+        BNB_PA = _newBnbPA;
+    }
+
+    function updateGMG(address _newGMG) external onlyOwner {
+        GMG = _newGMG;
+    }
+
     function updateTotalBought(address _participant, uint256 _amount) external {
-        if(!authorizedPresale[msg.sender]) revert unauthorized_presale();
+        if(!validPresale[IPresale(msg.sender)]) revert unauthorized_presale();
         totalBoughtInUsd[_participant] += _amount;
     }
 
