@@ -47,7 +47,6 @@ contract PresaleTest is Test {
             address(bnbPriceAggregator), 
             address(gmg),
             address(usdt)
-            // address(factory)
         );
         presale = Presale(payable(presaleAddress));
         gmg.approve(address(presale), 1_000_000 * 1e18);

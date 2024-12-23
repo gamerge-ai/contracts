@@ -6,7 +6,6 @@ import {AggregatorV3Interface} from "@chainlink/brownie/contracts/src/v0.8/share
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPresale} from "./IPresale.sol";
 import {PresaleFactory} from "./PresaleFactory.sol";
-// import {SafeMath} from "./helperLibraries/safeMath.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
@@ -44,11 +43,14 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
     /// @notice Immutable reference to the USDT ERC20 token
     IERC20 private immutable _usdt;
 
-    /// @notice Private function to check if the presale stage is active.
-    /// @dev Reverts with a custom error PSNA (Presale Stage Not Active) if the presale is inactive.
-    function _isPresaleActive() view private{
-        if(!isActive) revert presale_not_active(); // PSNA - presale stage not active
-    }
+    ///@notice creating instance of the registry contract
+    PresaleFactory private gmgRegistry;
+
+    /*
+    --------------------------
+    ---------MODIFIERS--------
+    --------------------------
+    */
 
     /// @notice Modifier to check whether presale stage is active before executing a function or not.
     /// @dev Calls the private function `_isPresaleActive` to perform the check.
@@ -57,8 +59,16 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         _;
     }
 
-    PresaleFactory private gmgRegistry;
+    modifier onlyOwnerOrParticipant(address _participant) {
+        _onlyParticipantOrOwner(_participant);
+        _;
+    }
 
+    /*
+   --------------------------
+   --------CONSTRUCTOR-------
+   --------------------------
+   */
     constructor(
         uint16 _tokenPrice,
         uint88 _tokenAllocation,
@@ -84,21 +94,24 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         emit PresaleContractCreated(address(this), owner());
     }
 
+    /*
+    --------------------------
+    ----PRIVATE FUNCTIONS-----
+    --------------------------
+    */
+
+    /// @notice Private function to check if the presale stage is active.
+    /// @dev Reverts with a custom error PSNA (Presale Stage Not Active) if the presale is inactive.
+    function _isPresaleActive() view private{
+        if(!isActive) revert presale_not_active(); // PSNA - presale stage not active
+    }
+
     function _limitExceeded(address user, uint256 amount) view private {
         if(gmgRegistry.getTotalBought(user) + amount > MAX_PURCHASE_LIMIT) revert max_limit_exceeded();
     }
 
-    function getIndividualBoughtAmount() public view returns(uint256) {
-        return gmgRegistry.getTotalBought(msg.sender);
-    }
-
-    function startPresale() public onlyOwner returns(uint256, bool) {
-        presaleStartTime = block.timestamp;
-        bool tokenSuccess = _gmg.transferFrom(msg.sender, address(this), presaleStage.allocation);
-        require(tokenSuccess, "GMG transfer failed to contract");
-        isActive = true;
-        emit PresaleStarted(presaleStartTime, isActive);
-        return (presaleStartTime, isActive);
+    function _onlyParticipantOrOwner(address _participant) view private {
+        if(msg.sender == _participant || msg.sender == owner()) revert only_participant_or_owner();
     }
 
     function _buyLogic(address _participant, uint256 valueInUsd, uint256 gmgTokens) private {
@@ -111,8 +124,6 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         uint256 releaseOnTGE = (gmgTokens * (presaleStage.tgePercentage * BPS)) / (100 * BPS);
         participant.claimableVestedGMG += (gmgTokens - releaseOnTGE);
         participant.releaseOnTGE += releaseOnTGE;
-
-        _gmg.transfer(_participant, gmgTokens);
     }
 
     function _buyWithBnb(address participant, address referral, uint256 bnbAmount) private {
@@ -142,6 +153,21 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         _buyLogic(participant, valueInUsd, gmgTokens);
 
         emit BoughtWithBnb(participant, bnbAmount, gmgTokens);
+    }
+
+    /*
+    --------------------------
+    -----PUBLIC FUNCTIONS-----
+    --------------------------
+    */
+
+    function startPresale() public onlyOwner returns(uint256, bool) {
+        presaleStartTime = block.timestamp;
+        bool tokenSuccess = _gmg.transferFrom(msg.sender, address(this), presaleStage.allocation);
+        require(tokenSuccess, "GMG transfer failed to contract");
+        isActive = true;
+        emit PresaleStarted(presaleStartTime, isActive);
+        return (presaleStartTime, isActive);
     }
 
     function buyWithBnb(address referral) public isPresaleActive nonReentrant payable {
@@ -175,15 +201,13 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
     }
 
     function triggerTGE() public onlyOwner nonReentrant {
-        // if(presaleStartTime.add(presaleStage.cliff) < block.timestamp) revert (""); // i am not sure when to trigger this
         if(isTgeTriggered) revert tge_already_triggered();
         tgeTriggeredAt = block.timestamp;
         isTgeTriggered = true;
         emit TgeTriggered(tgeTriggeredAt, isTgeTriggered);
     }
 
-    function claimTGE(address _participant) public nonReentrant {
-        if(msg.sender == _participant || msg.sender == owner()) revert only_participant_or_owner();
+    function claimTGE(address _participant) public nonReentrant onlyOwnerOrParticipant(_participant) {
         Participant memory participant = participantDetails[_participant];
         if(!participant.isParticipant) revert not_a_participant();
         if(!isTgeTriggered) revert tge_not_triggered();
@@ -194,8 +218,7 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         emit TgeClaimed(_participant, claimableGMG, msg.sender == owner());
     }
 
-    function claimVestingAmount(address _participant) public nonReentrant {
-        if(msg.sender == _participant || msg.sender == owner()) revert only_participant_or_owner();
+    function claimVestingAmount(address _participant) public nonReentrant onlyOwnerOrParticipant(_participant){
         if(block.timestamp < tgeTriggeredAt + presaleStage.cliff) revert cliff_period_not_ended();
         Participant memory participant = participantDetails[_participant];
         if(participant.totalGMG <= participant.withdrawnGMG) revert everything_has_claimed();
@@ -217,6 +240,11 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         emit VestingTokensClaimed(_participant, 1, msg.sender == owner(), 0);
     }
 
+    function getIndividualBoughtAmount(address _participant) public view returns(uint256) {
+        return gmgRegistry.getTotalBought(_participant);
+    }
+
+/// @notice payable receive function to receive native currency
     receive() external payable{
         _buyWithBnb(msg.sender, address(0), msg.value);
     }
