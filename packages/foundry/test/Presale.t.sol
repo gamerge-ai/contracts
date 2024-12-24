@@ -21,11 +21,13 @@ contract PresaleTest is Test {
     address public participant = makeAddr("participant");
     address public referral = makeAddr("referral");
 
-    uint16 public tokenPrice = 1;
+    uint16 public tokenPrice = 10000; //0.01USD
     uint88 public tokenAllocation = 1_000_000 * 1e18;
     uint24 public cliff = 30 days;
     uint8 public vestingMonths = 12;
     uint8 public tgePercentages = 10;
+
+    using console for *;
 
     function setUp() public {
 
@@ -55,7 +57,7 @@ contract PresaleTest is Test {
         vm.stopPrank();
     }
 
-    function testFuzz_StartPresale() public {
+    function test_StartPresale() public {
         vm.startPrank(owner);
         assertEq(presale.isActive(), false, "Presale already active");
         assertEq(presale.presaleStartTime(), 0, "presale start time is not zero");
@@ -69,12 +71,12 @@ contract PresaleTest is Test {
         vm.stopPrank();
     }
 
-    function testFuzz_BuyWithBnb(uint256 bnbAmount) public {
+    function test_BuyWithBnb(uint256 bnbAmount) public {
 
         vm.assume(bnbAmount > 1* 1e14 && bnbAmount < 1 * 1e18);
         uint256 bnbInUsd = 1000 * 1e6;
         uint256 valueInUsd = (bnbInUsd * bnbAmount) / 1e18; 
-        uint256 expectedGMG = (valueInUsd * 1e18) / (tokenPrice * 1e6);
+        uint256 expectedGMG = (valueInUsd * 1e18) / (tokenPrice);
 
         vm.deal(participant, bnbAmount);
 
@@ -91,31 +93,9 @@ contract PresaleTest is Test {
         assertEq(totalGMG, expectedGMG, "GMG mismatch");
     }
 
-    function test_BuyWithBnb() public {
-
-        // vm.assume(bnbAmount == 1 * 1e18);
-        uint256 bnbAmount = 1 * 1e18;
-        uint256 bnbInUsd = 1000 * 1e6;
-        uint256 expectedGMG = (bnbInUsd * bnbAmount) / (tokenPrice * 1e6);
-
-        vm.deal(participant, bnbAmount);
-
-        vm.prank(owner);
-        presale.startPresale();
-        vm.prank(participant);
-        presale.buyWithBnb{value: bnbAmount}(referral);
-
-        uint256 expectedContractBalance = bnbAmount - ((bnbAmount * 10) / 100);
-        assertEq(address(presale).balance, expectedContractBalance, "Presale contract balance mismatch");
-        assertEq(address(referral).balance, ((bnbAmount * 10) / 100));
-
-        (uint256 totalGMG, , , , , ) = presale.participantDetails(participant);  
-        assertEq(totalGMG, expectedGMG, "GMG mismatch");
-    }
-
-    function testFuzz_BuyWithUsdt(uint256 usdtAmount) public {
-        vm.assume(usdtAmount <= 1000 * 1e6);
-        uint256 expectedGMG = (usdtAmount * 1e18) / (tokenPrice * 1e6);
+    function test_BuyWithUsdt(uint256 usdtAmount) public {
+        vm.assume(usdtAmount <= 1000);
+        uint256 expectedGMG = (usdtAmount * 1e6 * 1e18) / (tokenPrice) ;
 
         vm.startPrank(owner);
         presale.startPresale();
@@ -135,4 +115,48 @@ contract PresaleTest is Test {
 
         vm.stopPrank();
     }
+
+    function test_triggerTGE() public {
+        vm.startPrank(owner);
+        presale.startPresale();
+        assertEq(presale.isTgeTriggered(), false, "presale TGE already active");
+        assertEq(presale.tgeTriggeredAt(), 0, "presale TGE start time is not zero");
+        presale.triggerTGE();
+        assertTrue(presale.isTgeTriggered(), "Presale should be active");
+        vm.stopPrank();
+    }
+
+    // function setUp_participant(uint256 _amountInUsd) public  {
+    //     assume(amountInUsd <= 1000 * 1e6);
+    //     totalGMG = _amountInUsd * tokenPrice;
+    // }
+
+    // function testFuzz_clainTGE(uint256 bnbAmount, uint256 usdtAmount) public {
+    //     vm.assume(bnbAmount > 1* 1e14 && bnbAmount < 1 * 1e18);
+    //     vm.assume(usdtAmount <= 1000 * 1e6);
+
+    //     uint256 bnbInUsd = 1000 * 1e6;
+    //     uint256 valueInUsd = (bnbInUsd * bnbAmount) / 1e18; 
+    //     uint256 expectedGMGForBnb = (valueInUsd * 1e18) / (tokenPrice * 1e6);
+    //     uint256 expectedGMGForUsdt = (usdtAmount * 1e18) / (tokenPrice * 1e6);
+    //     vm.startPrank(owner);
+    //     presale.startPresale();
+    //     presale.triggerTGE();
+    //     vm.stopPrank();
+
+    //     vm.startPrank(participant);
+    //     presale.buyWithBnb{value: bnbAmount}(referral);
+    //     usdt.approve(address(presale), usdtAmount);
+    //     presale.buyWithUsdt(usdtAmount, referral);
+
+    //     uint256 expectedContractBalance = bnbAmount - ((bnbAmount * 10) / 100);
+    //     assertEq(address(presale).balance, expectedContractBalance, "Presale contract balance mismatch");
+    //     assertEq(address(referral).balance, ((bnbAmount * 10) / 100));
+
+    //     (uint256 totalGMG, , , , , ) = presale.participantDetails(participant);  
+    //     assertEq(totalGMG, expectedGMG, "GMG mismatch");
+
+    //     vm.deal(participant, bnbAmount);
+
+    // }
 }

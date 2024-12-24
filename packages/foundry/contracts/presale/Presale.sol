@@ -134,7 +134,7 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
 
         _limitExceeded(participant, valueInUsd);
 
-        uint256 gmgTokens = (valueInUsd * 1e18) / (presaleStage.pricePerToken * 1e6);
+        uint256 gmgTokens = (valueInUsd * 1e18 ) / (presaleStage.pricePerToken);
         if (gmgTokens > _gmg.balanceOf(address(this))) revert insufficient_tokens();
 
         uint256 amountToReferral;
@@ -178,7 +178,7 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
     function buyWithUsdt(uint256 usdtAmount, address referral) public isPresaleActive nonReentrant {
         address participant = msg.sender;
         _limitExceeded(participant, usdtAmount);
-        uint256 gmgTokens = (usdtAmount * 1e18) / (presaleStage.pricePerToken * 1e6);
+        uint256 gmgTokens = ((usdtAmount * 1e6 * 1e18) / (presaleStage.pricePerToken));
         if(gmgTokens > _gmg.balanceOf(address(this))) revert insufficient_tokens();
         bool success = _usdt.transferFrom(msg.sender, address(this), usdtAmount);
         require(success, "USDT transfer failed to Contract");
