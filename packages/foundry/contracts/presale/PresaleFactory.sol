@@ -35,16 +35,14 @@ contract PresaleFactory is Ownable2Step {
         uint24 _cliff,
         uint8 _vestingMonths,
         uint8 _tgePercentages
-    ) public onlyOwner returns(address) {
+    ) public onlyOwner {
         IPresale newPresale = IPresale(Clones.clone(address(PRESALE_IMPL)));
         newPresale.initialize(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, BNB_PA, GMG, USDT, address(this), msg.sender);
-        require(IERC20(GMG).transferFrom(msg.sender, address(newPresale), _tokenAllocation), "GMG transfer failed to contract");
+        require(IERC20(GMG).transferFrom(msg.sender, address(newPresale), _tokenAllocation), "GMG transfer to presale failed");
 
         validPresale[newPresale] = true;
 
         emit NewPresaleCreated(newPresale);
-
-        return address(newPresale);
     }
 
     function updateBNB_PA(address _newBnbPA) external onlyOwner {
@@ -57,11 +55,11 @@ contract PresaleFactory is Ownable2Step {
 
     function updateTotalBought(address _participant, uint256 _amount) external {
         if(!validPresale[IPresale(msg.sender)]) revert unauthorized_presale();
+
         _totalBoughtInUsd[_participant] += _amount;
     }
 
     function getTotalBought(address _participant) external view returns(uint256){
         return _totalBoughtInUsd[_participant];
     }
-
 }
