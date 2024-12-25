@@ -14,7 +14,7 @@ contract PresaleFactory is Ownable2Step {
     address public GMG;
     address public immutable USDT;
 
-    mapping(address => uint256) private totalBoughtInUsd;
+    mapping(address => uint256) private _totalBoughtInUsd;
     mapping(IPresale => bool) public validPresale;
 
     event NewPresaleCreated(IPresale indexed presaleAddress);
@@ -57,11 +57,11 @@ contract PresaleFactory is Ownable2Step {
 
     function updateTotalBought(address _participant, uint256 _amount) external {
         if(!validPresale[IPresale(msg.sender)]) revert unauthorized_presale();
-        totalBoughtInUsd[_participant] += _amount;
+        _totalBoughtInUsd[_participant] += _amount;
     }
 
     function getTotalBought(address _participant) external view returns(uint256){
-        return totalBoughtInUsd[_participant];
+        return _totalBoughtInUsd[_participant];
     }
 
 }
