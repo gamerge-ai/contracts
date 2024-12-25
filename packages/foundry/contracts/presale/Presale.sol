@@ -18,7 +18,22 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
     /// @notice bps for accurate decimals
     uint16 private constant BPS = 100; // 1% = 100 points
 
+    /// @notice reference to the GMG ERC20 token 
+    IERC20 private _gmg;
+    /// @notice reference to the USDT ERC20 token
+    IERC20 private _usdt;
+    
+    /// @notice struct holding all the info about this presale round
     PresaleInfo public presaleInfo;
+
+    /// @notice address of the Factory contract that deployed this presale (will be same for every presale)
+    PresaleFactory public presaleFactory;
+
+    AggregatorV3Interface public bnbPriceAggregator;
+
+    /// @notice TGE info;
+    uint256 public tgeTriggeredAt;
+    bool public isTgeTriggered = false;
 
     /// @notice Mapping to store participant details
     mapping(address => Participant) public participantDetails;
@@ -27,24 +42,13 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
 
     /// @notice Start time of the presale
     uint256 public presaleStartTime;
+    
+    //@audit seems useless
     /// @notice total bnb
     uint256 public totalBnb;
     /// @notice total usdt
     uint256 public totalUsdt;
-    /// @notice tge triggered time;
-    uint256 public tgeTriggeredAt;
 
-    bool public isTgeTriggered = false;
-
-    /// @notice Initializes the Chainlink or Oracle price aggregator interface for ETH prices.
-    AggregatorV3Interface public bnbPriceAggregator;
-
-    /// @notice reference to the GMG ERC20 token 
-    IERC20 private _gmg;
-    /// @notice reference to the USDT ERC20 token
-    IERC20 private _usdt;
-
-    PresaleFactory private gmgRegistry;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -65,7 +69,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         ) external initializer {
             __Ownable_init(_owner);
 
-        gmgRegistry = PresaleFactory(_gmgRegistryAddress);
+        presaleFactory = PresaleFactory(_gmgRegistryAddress);
         presaleInfo = PresaleInfo(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages);
         bnbPriceAggregator = AggregatorV3Interface(_bnbPriceAggregator);
         _gmg = IERC20(_gmgAddress);
@@ -76,19 +80,16 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
     }
 
     function _limitExceeded(address user, uint256 amount) view private {
-        if(gmgRegistry.getTotalBought(user) + amount > MAX_PURCHASE_LIMIT) revert max_limit_exceeded();
+        if(presaleFactory.getTotalBought(user) + amount > MAX_PURCHASE_LIMIT) revert max_limit_exceeded();
     }
 
-    function getIndividualBoughtAmount() public view returns(uint256) {
-        return gmgRegistry.getTotalBought(msg.sender);
-    }
 
     function _buyLogic(address _participant, uint256 valueInUsd, uint256 gmgTokens) private {
         Participant memory participant = participantDetails[_participant];
         if(!participant.isParticipant) {
             participant.isParticipant = true;
         }
-        gmgRegistry.updateTotalBought(_participant, valueInUsd);
+        presaleFactory.updateTotalBought(_participant, valueInUsd);
         participant.totalGMG += gmgTokens;
         uint256 releaseOnTGE = (gmgTokens * (presaleInfo.tgePercentage * BPS)) / (100 * BPS);
         participant.claimableVestedGMG += (gmgTokens - releaseOnTGE);
