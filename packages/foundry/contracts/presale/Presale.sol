@@ -39,9 +39,6 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
     mapping(address => Participant) public participantDetails;
     /// @notice Mapping to store referral details
     mapping(address => uint256) public individualReferralAmount;
-
-    /// @notice Start time of the presale
-    uint256 public presaleStartTime;
     
     //@audit seems useless
     /// @notice total bnb
@@ -61,6 +58,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         uint24 _cliff,
         uint8 _vestingMonths,
         uint8 _tgePercentages,
+        uint8 _presaleStage,
         address _bnbPriceAggregator, 
         address _gmgAddress, 
         address _usdtAddress,
@@ -70,13 +68,11 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
             __Ownable_init(_owner);
 
         presaleFactory = PresaleFactory(_gmgRegistryAddress);
-        presaleInfo = PresaleInfo(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages);
+        presaleInfo = PresaleInfo(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, _presaleStage);
         bnbPriceAggregator = AggregatorV3Interface(_bnbPriceAggregator);
         _gmg = IERC20(_gmgAddress);
         _usdt = IERC20(_usdtAddress);
-        presaleStartTime = block.timestamp;
-        emit PresaleStarted(presaleStartTime);
-
+        emit PresaleStarted(_presaleStage);
     }
 
     function _limitExceeded(address user, uint256 amount) view private {
@@ -151,7 +147,6 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
     }
 
     function triggerTGE() public onlyOwner nonReentrant {
-        // if(presaleStartTime.add(PresaleInfo.cliff) < block.timestamp) revert (""); // i am not sure when to trigger this
         if(isTgeTriggered) revert tge_already_triggered();
         tgeTriggeredAt = block.timestamp;
         isTgeTriggered = true;

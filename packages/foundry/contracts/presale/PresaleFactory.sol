@@ -37,7 +37,7 @@ contract PresaleFactory is Ownable2Step {
         uint8 _tgePercentages
     ) public onlyOwner {
         IPresale newPresale = IPresale(Clones.clone(address(PRESALE_IMPL)));
-        newPresale.initialize(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, BNB_PA, GMG, USDT, address(this), msg.sender);
+        newPresale.initialize(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, 0, BNB_PA, GMG, USDT, address(this), msg.sender);
         require(IERC20(GMG).transferFrom(msg.sender, address(newPresale), _tokenAllocation), "GMG transfer to presale failed");
 
         validPresale[newPresale] = true;

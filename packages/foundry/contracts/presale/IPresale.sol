@@ -15,6 +15,7 @@ interface IPresale {
         uint24 cliff;
         uint8 vestingMonths;
         uint8 tgePercentage;
+        uint8 presaleStage;
     }
     /// @notice Details of user purchase and vesting progress
     struct Participant {
@@ -50,7 +51,7 @@ interface IPresale {
    --------------------------
    */
 
-   event PresaleStarted(uint256 indexed presaleStartTime);
+   event PresaleStarted(uint8 indexed presaleStage);
    event BoughtWithBnb(address indexed buyer, uint256 amountInBnb, uint256 gmgTokens);
    event BoughtWithUsdt(address indexed buyer, uint256 amountInUsdt, uint256 gmgTokens);
    event TgeTriggered(uint256 triggeredAt, bool isTriggered);
@@ -69,6 +70,7 @@ interface IPresale {
         uint24 _cliff,
         uint8 _vestingMonths,
         uint8 _tgePercentages,
+        uint8 _presaleStage,
         address _bnbPriceAggregator, 
         address _gmgAddress, 
         address _usdtAddress,
