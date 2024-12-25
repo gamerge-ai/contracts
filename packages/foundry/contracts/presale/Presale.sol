@@ -29,9 +29,12 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
     uint256 public totalUsdt;
     /// @notice tge triggered time;
     uint256 public tgeTriggeredAt;
+    /// @notice variable to track total gmg bought till now
+    uint256 public trackingTotalBought;
 
     bool public isActive = false; 
     bool public isTgeTriggered = false;
+    bool public gmgSoldOut = false;
 
     /// @notice Array to store information about all presale stages
     PresaleStage public presaleStage;
@@ -61,6 +64,11 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
 
     modifier onlyOwnerOrParticipant(address _participant) {
         _onlyParticipantOrOwner(_participant);
+        _;
+    }
+
+    modifier isSoldOut() {
+        _isSoldOut();
         _;
     }
 
@@ -114,19 +122,24 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         if(msg.sender == _participant || msg.sender == owner()) revert only_participant_or_owner();
     }
 
+    function _isSoldOut() view private {
+        if(trackingTotalBought >= presaleStage.allocation) revert total_gmg_sold_out();
+    }
+
     function _buyLogic(address _participant, uint256 valueInUsd, uint256 gmgTokens) private {
         Participant storage participant = participantDetails[_participant];
         if(!participant.isParticipant) {
             participant.isParticipant = true;
         }
         gmgRegistry.updateTotalBought(_participant, valueInUsd);
+        trackingTotalBought += gmgTokens;
         participant.totalGMG += gmgTokens;
         uint256 releaseOnTGE = (gmgTokens * (presaleStage.tgePercentage * BPS)) / (100 * BPS);
         participant.claimableVestedGMG += (gmgTokens - releaseOnTGE);
         participant.releaseOnTGE += releaseOnTGE;
     }
 
-    function _buyWithBnb(address participant, address referral, uint256 bnbAmount) private {
+    function _buyWithBnb(address participant, address referral, uint256 bnbAmount) private _isSoldOut {
         uint256 decimals = bnbPriceAggregator.decimals() - 6;
         (, int256 latestPrice, , ,) = bnbPriceAggregator.latestRoundData();
         uint256 bnbInUsd = uint(latestPrice) / (10 ** decimals);
@@ -170,12 +183,12 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         return (presaleStartTime, isActive);
     }
 
-    function buyWithBnb(address referral) public isPresaleActive nonReentrant payable {
+    function buyWithBnb(address referral) public isPresaleActive nonReentrant _isSoldOut {
         _buyWithBnb(msg.sender, referral, msg.value);
     }
 
 
-    function buyWithUsdt(uint256 usdtAmount, address referral) public isPresaleActive nonReentrant {
+    function buyWithUsdt(uint256 usdtAmount, address referral) public isPresaleActive nonReentrant _isSoldOut{
         address participant = msg.sender;
         _limitExceeded(participant, usdtAmount);
         uint256 gmgTokens = ((usdtAmount * 1e6 * 1e18) / (presaleStage.pricePerToken));
@@ -239,6 +252,14 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
 
         emit VestingTokensClaimed(_participant, 1, msg.sender == owner(), 0);
     }
+
+   function withdrawTokens(address _tokenAddress, address _to, uint256 _amount) public onlyPlatformAdmin nonReentrant {
+        IERC20 token = IERC20(_tokenAddress);
+        uint256 balance = token.balanceOf(address(this));
+        if(balance == 0) revert zero_token_balances();
+        if(_amount > balance) revert amount_exceeding_balannce();
+        token.transfer(_to, _amount); 
+   }
 
     function getIndividualBoughtAmount(address _participant) public view returns(uint256) {
         return gmgRegistry.getTotalBought(_participant);

@@ -43,6 +43,9 @@ interface IPresale {
    error not_a_participant();
    error nothing_to_claim();
    error everything_has_claimed();
+   error zero_token_balances();
+   error amount_exceeding_balannce();
+   error total_gmg_sold_out();
 
 
    /*
