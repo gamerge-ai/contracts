@@ -83,7 +83,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
    --------------------------
    */
 
-    function buyWithBnb(address referral) external nonReentrant payable {
+    function buyWithBnb(address referral) public nonReentrant payable {
         address participant = msg.sender;
         uint256 decimals = bnbPriceAggregator.decimals() - 6;
         (, int256 latestPrice , , ,)  = bnbPriceAggregator.latestRoundData();
@@ -170,7 +170,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         uint256 gmgAmount = valueInUsd / presaleInfo.pricePerToken;
 
         uint gmgB = gmgBought;
-        if(gmgB+gmgAmount > presaleStage.allocation) revert total_gmg_sold_out(presaleStage.allocation-gmgB);
+        if(gmgB+gmgAmount > presaleInfo.allocation) revert total_gmg_sold_out(presaleInfo.allocation-gmgB);
         if(gmgAmount > gmg.balanceOf(address(this))) revert insufficient_tokens();
         gmgBought += gmgAmount;
 
@@ -225,6 +225,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         emit VestingTokensClaimed(_participant, 1, msg.sender == owner(), 0);
     }
 
-    //@audit Why not invoke the buyWithBnb logic inside this?
-    receive() external payable{}
+    receive() external payable{
+        buyWithBnb(address(0));
+    }
 }
