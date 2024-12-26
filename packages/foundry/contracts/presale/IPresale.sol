@@ -46,6 +46,7 @@ interface IPresale {
    error everything_has_claimed();
    error referral_withdrawal_failed();
    error cannot_claim_zero_amount();
+   error total_gmg_sold_out(uint256 gmgLeft);
 
 
    /*

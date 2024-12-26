@@ -29,6 +29,8 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
     /// @notice address of the Factory contract that deployed this presale (will be same for every presale)
     PresaleFactory public presaleFactory;
 
+    /// @notice amount of GMG bought so far
+    uint256 public gmgBought;
     AggregatorV3Interface public bnbPriceAggregator;
 
     /// @notice TGE info;
@@ -166,8 +168,11 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         presaleFactory.updateTotalBought(_participant, valueInUsd);
 
         uint256 gmgAmount = valueInUsd / presaleInfo.pricePerToken;
-        
+
+        uint gmgB = gmgBought;
+        if(gmgB+gmgAmount > presaleStage.allocation) revert total_gmg_sold_out(presaleStage.allocation-gmgB);
         if(gmgAmount > gmg.balanceOf(address(this))) revert insufficient_tokens();
+        gmgBought += gmgAmount;
 
         _updateReferral(_referral, asset, msg.value);
         
