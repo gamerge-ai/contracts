@@ -19,7 +19,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
     uint16 private constant BPS = 100; // 1% = 100 points
 
     /// @notice reference to the GMG ERC20 token 
-    IERC20 private _gmg;
+    IERC20 public gmg;
     /// @notice reference to the USDT ERC20 token
     IERC20 private _usdt;
     
@@ -37,19 +37,19 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
 
     /// @notice Mapping to store participant details
     mapping(address => Participant) public participantDetails;
-    /// @notice Mapping to store referral details
-    mapping(address => uint256) public individualReferralAmount;
-    
-    //@audit seems useless
-    /// @notice total bnb
-    uint256 public totalBnb;
-    /// @notice total usdt
-    uint256 public totalUsdt;
+    /// @notice Mappings to store referral details
+    mapping(address => uint256) public individualReferralBnb;
+    mapping(address => uint256) public individualReferralUsdt;
 
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
+    }
+
+    modifier afterTgeTrigger() {
+        if(!isTgeTriggered) revert tge_not_triggered();
+        _;
     }
 
     function initialize(
@@ -64,34 +64,41 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         address _usdtAddress,
         address _gmgRegistryAddress,
         address _owner
-        ) external initializer {
+        ) external override initializer {
             __Ownable_init(_owner);
 
         presaleFactory = PresaleFactory(_gmgRegistryAddress);
         presaleInfo = PresaleInfo(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, _presaleStage);
         bnbPriceAggregator = AggregatorV3Interface(_bnbPriceAggregator);
-        _gmg = IERC20(_gmgAddress);
+        gmg = IERC20(_gmgAddress);
         _usdt = IERC20(_usdtAddress);
         emit PresaleStarted(_presaleStage);
     }
 
-    function _limitExceeded(address user, uint256 amount) view private {
-        if(presaleFactory.getTotalBought(user) + amount > MAX_PURCHASE_LIMIT) revert max_limit_exceeded();
-    }
+    function _buyLogic(address _participant, address _referral, uint256 valueInUsd, ASSET asset) private {
+        if(presaleFactory.getTotalBought(_participant) + valueInUsd > MAX_PURCHASE_LIMIT) revert max_limit_exceeded();
 
+        presaleFactory.updateTotalBought(_participant, valueInUsd);
 
-    function _buyLogic(address _participant, uint256 valueInUsd, uint256 gmgTokens) private {
+        uint256 gmgAmount = valueInUsd / presaleInfo.pricePerToken;
+
+        if(gmgAmount > gmg.balanceOf(address(this))) revert insufficient_tokens();
+
+        _updateReferral(_referral, asset, msg.value);
+        
         Participant memory participant = participantDetails[_participant];
         if(!participant.isParticipant) {
             participant.isParticipant = true;
         }
-        presaleFactory.updateTotalBought(_participant, valueInUsd);
-        participant.totalGMG += gmgTokens;
-        uint256 releaseOnTGE = (gmgTokens * (presaleInfo.tgePercentage * BPS)) / (100 * BPS);
-        participant.claimableVestedGMG += (gmgTokens - releaseOnTGE);
+        participant.totalGMG += gmgAmount;
+        uint256 releaseOnTGE = (gmgAmount * (presaleInfo.tgePercentage * BPS)) / (100 * BPS);
         participant.releaseOnTGE += releaseOnTGE;
+        participant.claimableVestedGMG += (gmgAmount - releaseOnTGE);
 
-        _gmg.transfer(_participant, gmgTokens);
+        gmg.transfer(_participant, gmgAmount);
+
+        if(asset == ASSET.BNB) emit BoughtWithBnb(_participant, msg.value, gmgAmount);
+        else emit BoughtWithUsdt(_participant, valueInUsd, gmgAmount);
     }
 
     function buyWithBnb(address referral) public nonReentrant payable {
@@ -100,68 +107,71 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         (, int256 latestPrice , , ,)  = bnbPriceAggregator.latestRoundData();
         uint256 bnbInUsd = uint(latestPrice)/(10 ** decimals);
         uint256 valueInUsd = (bnbInUsd * (msg.value)) / 1e18;
-        _limitExceeded(participant, valueInUsd);
-        uint256 gmgTokens = valueInUsd/(presaleInfo.pricePerToken);
-        if(gmgTokens > _gmg.balanceOf(address(this))) revert insufficient_tokens();
 
-        uint256 amountToReferral;
-        uint256 amountToContract;
-        if(referral == address(0)) {
-            amountToContract = msg.value;
-        } else {
-            amountToReferral = (msg.value * (10 * BPS)) / (100 * BPS);
-            amountToContract = msg.value - amountToReferral;
-            individualReferralAmount[referral] += amountToReferral;
-            (bool success, ) = referral.call{value: amountToReferral}("");
-            require(success, "BNB transfer failed to Referral");
-        }
-        totalBnb += amountToContract;
-        _buyLogic(participant, valueInUsd, gmgTokens);
-
-        emit BoughtWithBnb(participant, msg.value, gmgTokens);
+        _buyLogic(participant, referral, valueInUsd, ASSET.BNB);
     }
 
     function buyWithUsdt(uint256 usdtAmount, address referral) public nonReentrant {
         address participant = msg.sender;
-        _limitExceeded(participant, usdtAmount);
-        uint256 gmgTokens = usdtAmount / (presaleInfo.pricePerToken);
-        if(gmgTokens > _gmg.balanceOf(address(this))) revert insufficient_tokens();
-        bool success = _usdt.transferFrom(msg.sender, address(this), usdtAmount);
-        require(success, "USDT transfer failed to Contract");
 
-        uint256 amountToReferral;
-        uint256 amountToContract;
-        if(referral == address(0)) {
-            amountToContract = usdtAmount;
-        } else {
-            amountToReferral = (usdtAmount * 10)/(100);
-            amountToContract = usdtAmount - amountToReferral;
-            individualReferralAmount[referral] += amountToReferral;
-            bool referralSuccess = _usdt.transfer(referral, amountToReferral);
-            require(referralSuccess, "USDT transfer failed to Referral");
-        }
-        totalUsdt += amountToContract;
-        _buyLogic(participant, usdtAmount, gmgTokens);
+        _buyLogic(participant, referral, usdtAmount, ASSET.USDT);
 
-        emit BoughtWithUsdt(participant, usdtAmount, gmgTokens);
+        bool success = _usdt.transferFrom(participant, address(this), usdtAmount);
+        require(success, "USDT transfer failed");
     }
 
-    function triggerTGE() public onlyOwner nonReentrant {
+    function calculateReferralAmount(uint256 amountInUsdtOrBnb) public pure returns(uint256 amountToReferral) {
+        amountToReferral = (amountInUsdtOrBnb * (REFERRAL_BONUS * BPS)) / (100 * BPS);
+    }
+
+    function _updateReferral(address referral, ASSET asset, uint256 amount) private {
+        if(referral != address(0)) {
+            uint256 amountToReferral = calculateReferralAmount(amount);
+
+            if (asset == ASSET.BNB)
+                individualReferralBnb[referral] += amountToReferral;
+            else
+                individualReferralUsdt[referral] += amountToReferral;
+        }
+    }
+
+    function getRefferalAmount(ASSET asset) external afterTgeTrigger {
+        bool success;
+
+        if (asset == ASSET.BNB) {
+            (success, ) = msg.sender.call{value: individualReferralBnb[msg.sender]}("");
+        } else {
+            success = _usdt.transfer(msg.sender, individualReferralUsdt[msg.sender]);
+        }
+        
+        if(!success) revert referral_withdrawal_failed();
+    }
+
+    function triggerTGE() public onlyOwner {
         if(isTgeTriggered) revert tge_already_triggered();
+
         tgeTriggeredAt = block.timestamp;
         isTgeTriggered = true;
+
         emit TgeTriggered(tgeTriggeredAt, isTgeTriggered);
     }
 
-    function claimTGE(address _participant) public nonReentrant {
+    function claimTGE(address _participant) public nonReentrant afterTgeTrigger {
         if(msg.sender == _participant || msg.sender == owner()) revert only_participant_or_owner();
-        Participant memory participant = participantDetails[_participant];
+
+        Participant storage participant = participantDetails[_participant];
+
         if(!participant.isParticipant) revert not_a_participant();
-        if(!isTgeTriggered) revert tge_not_triggered();
+
         uint256 claimableGMG = participantDetails[_participant].releaseOnTGE;
+
+        if(claimableGMG == 0) revert cannot_claim_zero_amount();
+        
         participant.releaseOnTGE = 0;
         participant.withdrawnGMG += claimableGMG;
-        _gmg.transfer(_participant, claimableGMG);
+
+        gmg.transfer(_participant, claimableGMG);
+        
         emit TgeClaimed(_participant, claimableGMG, msg.sender == owner());
     }
 
@@ -183,7 +193,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
 
         participant.claimableVestedGMG -= claimableAmount;
         participant.withdrawnGMG += claimableAmount;
-        _gmg.transfer(_participant, claimableAmount);
+        gmg.transfer(_participant, claimableAmount);
 
         emit VestingTokensClaimed(_participant, 1, msg.sender == owner(), 0);
     }

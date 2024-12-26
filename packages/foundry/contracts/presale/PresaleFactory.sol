@@ -59,7 +59,7 @@ contract PresaleFactory is Ownable2Step {
         _totalBoughtInUsd[_participant] += _amount;
     }
 
-    function getTotalBought(address _participant) external view returns(uint256){
-        return _totalBoughtInUsd[_participant];
+    function getTotalBought(address _participant) external view returns(uint256 totalBought) {
+        totalBought = _totalBoughtInUsd[_participant];
     }
 }

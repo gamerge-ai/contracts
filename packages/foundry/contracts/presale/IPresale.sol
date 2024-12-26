@@ -2,7 +2,8 @@
 pragma solidity 0.8.20;
 
 interface IPresale {
-   
+   enum ASSET{BNB, USDT}
+
    /*
    --------------------------
    ----------STRUCTS----------
@@ -19,10 +20,10 @@ interface IPresale {
     }
     /// @notice Details of user purchase and vesting progress
     struct Participant {
-        uint256 totalGMG;
-        uint256 withdrawnGMG;
-        uint256 releaseOnTGE;
-        uint256 claimableVestedGMG;
+        uint256 totalGMG; // Total GMG bought
+        uint256 withdrawnGMG; // GMG amount withdraw so far, includes both TGE and Vesting
+        uint256 releaseOnTGE; // GMG amount to be released after TGE
+        uint256 claimableVestedGMG; // GMG amount that will be released during vesting period
         uint256 lastVestedClaimedAt;
         bool isParticipant;
     }
@@ -43,6 +44,8 @@ interface IPresale {
    error not_a_participant();
    error nothing_to_claim();
    error everything_has_claimed();
+   error referral_withdrawal_failed();
+   error cannot_claim_zero_amount();
 
 
    /*
