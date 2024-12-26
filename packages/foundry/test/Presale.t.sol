@@ -103,7 +103,7 @@ contract PresaleTest is Test {
     }
 
     function test_BuyWithUsdt(uint256 usdtAmount) public {
-        vm.assume(usdtAmount <= 1000);
+        vm.assume(usdtAmount <= 1000 && usdtAmount > 1);
         uint256 expectedGMG = (usdtAmount * 1e6 * 1e18) / (tokenPrice) ;
 
         vm.startPrank(owner);
@@ -138,34 +138,40 @@ contract PresaleTest is Test {
         vm.stopPrank();
     }
 
-    function _setupParticipant(uint256 amountInUsd) internal  {
-        vm.assume(amountInUsd <= 1000);
-        uint256 totalGMG = (amountInUsd * 1e6 * 1e18) / (tokenPrice) ;
-        uint256 releaseOnTGE = (totalGMG * tgePercentages) / 100;
-        uint256 claimableVestedGMG = totalGMG - releaseOnTGE;
-        presale.participantDetails(participant) = Participant({
-            totalGMG: totalGMG,
-            releaseOnTGE: releaseOnTGE,
-            claimableVestedGMG: claimableVestedGMG,
-            withdrawnGMG: 0,
-            isParticipant: true,
-            lastVestedClaimedAt: 0
-        });
-     }
-
     function testFuzz_claimTGE(uint256 amountInUsd) public {
-        vm.assume(amountInUsd <= 1000);
-        _setupParticipant(amountInUsd);
+        vm.assume(amountInUsd <= 1000 && amountInUsd > 1);
         vm.startPrank(owner);
         presale.startPresale();
-        // usdt.transfer(participant, usdtAmount);
+        usdt.transfer(participant, amountInUsd);
         presale.triggerTGE();
         vm.stopPrank();
 
         vm.startPrank(participant);
-        (uint256 totalGMG, uint256 withdrawnGMG, uint256 releaseOnTGE, uint256 claimableVestedGMG, uint256 lastVestedClaimedAt, bool isParticipant) = presale.participantDetails(participant);  
+        usdt.approve(address(presale), amountInUsd);
+        presale.buyWithUsdt(amountInUsd, referral);
+        (, , uint256 releaseOnTGE, , , ) = presale.participantDetails(participant);  
         presale.claimTGE(participant);
-        // assertEq(totalGMG, expectedGMG, "GMG mismatch");
-        assertEq(usdt.balanceOf(participant), releaseOnTGE, "balance and release");
+        (, uint256 withdrawnGMGAfter, uint256 releaseOnTGEAfter, , , ) = presale.participantDetails(participant);  
+        assertEq(gmg.balanceOf(participant), releaseOnTGE, "balanceOf(participant) and releaseOnTGE mismatch");
+        assertEq(gmg.balanceOf(participant), withdrawnGMGAfter, "withdrawn and balanceOf(participant) mismatch");
+        assertEq(releaseOnTGEAfter, 0, "release on tge should be zero after claiming TGE");
+    }
+
+    function testFuzz_claimVestingAmount(uint256 amountInUsd) public {
+        testFuzz_claimTGE(amountInUsd);
+        vm.startPrank(participant);
+        (uint256 totalGMG, uint256 withdrawnGMG, uint256 releaseOnTGE, uint256 claimableVestedGMG, , ) = presale.participantDetails(participant);  
+        uint256 totalVestingAmount = (totalGMG * ((100 - tgePercentages))) / (100);
+        uint256 monthlyClaimable = totalVestingAmount / vestingMonths;
+        uint256 claimableAmount = claimableVestedGMG < monthlyClaimable ? 
+                                  claimableVestedGMG : monthlyClaimable;
+        uint256 _cliff = cliff;
+        vm.warp(block.timestamp + cliff);
+        uint256 tgeTriggeredAtSlot = 8;
+        vm.store(address(presale), bytes32(tgeTriggeredAtSlot), bytes32(block.timestamp - _cliff));
+        presale.claimVestingAmount(participant);
+        (uint256 totalGMGAfter, uint256 withdrawnGMGAfter, uint256 releaseOnTGEAfter, uint256 claimableVestedGMGAfter, , ) = presale.participantDetails(participant);
+        assertEq(gmg.balanceOf(participant), withdrawnGMGAfter, "withdrawn and balanceOf(participant) mismatch");
+        assertEq(claimableVestedGMGAfter, (claimableVestedGMG - claimableAmount), "claimableVestedGMGAfter and (vestedAmount + claimed amount) mismatch");
     }
 }

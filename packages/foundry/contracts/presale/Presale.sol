@@ -119,7 +119,7 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
     }
 
     function _onlyParticipantOrOwner(address _participant) view private {
-        if(msg.sender == _participant || msg.sender == owner()) revert only_participant_or_owner();
+        if(!(msg.sender == _participant || msg.sender == owner())) revert only_participant_or_owner();
     }
 
     function _isSoldOut() view private {
@@ -221,7 +221,7 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
     }
 
     function claimTGE(address _participant) public nonReentrant onlyOwnerOrParticipant(_participant) isPresaleActive {
-        Participant memory participant = participantDetails[_participant];
+        Participant storage participant = participantDetails[_participant];
         if(!participant.isParticipant) revert not_a_participant();
         if(!isTgeTriggered) revert tge_not_triggered();
         uint256 claimableGMG = participantDetails[_participant].releaseOnTGE;
@@ -233,7 +233,7 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
 
     function claimVestingAmount(address _participant) public nonReentrant onlyOwnerOrParticipant(_participant) isPresaleActive{
         if(block.timestamp < tgeTriggeredAt + presaleStage.cliff) revert cliff_period_not_ended();
-        Participant memory participant = participantDetails[_participant];
+        Participant storage participant = participantDetails[_participant];
         if(participant.totalGMG <= participant.withdrawnGMG) revert everything_has_claimed();
         uint256 totalVestingAmount = (participant.totalGMG * ((100 - presaleStage.tgePercentage) * BPS)) / (100 * BPS);
 
