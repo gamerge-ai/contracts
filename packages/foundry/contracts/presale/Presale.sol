@@ -139,7 +139,7 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         participant.releaseOnTGE += releaseOnTGE;
     }
 
-    function _buyWithBnb(address participant, address referral, uint256 bnbAmount) private _isSoldOut {
+    function _buyWithBnb(address participant, address referral, uint256 bnbAmount) private isSoldOut {
         uint256 decimals = bnbPriceAggregator.decimals() - 6;
         (, int256 latestPrice, , ,) = bnbPriceAggregator.latestRoundData();
         uint256 bnbInUsd = uint(latestPrice) / (10 ** decimals);
@@ -183,12 +183,12 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         return (presaleStartTime, isActive);
     }
 
-    function buyWithBnb(address referral) public isPresaleActive nonReentrant _isSoldOut {
+    function buyWithBnb(address referral) public payable isPresaleActive nonReentrant {
         _buyWithBnb(msg.sender, referral, msg.value);
     }
 
 
-    function buyWithUsdt(uint256 usdtAmount, address referral) public isPresaleActive nonReentrant _isSoldOut{
+    function buyWithUsdt(uint256 usdtAmount, address referral) public isPresaleActive nonReentrant isSoldOut{
         address participant = msg.sender;
         _limitExceeded(participant, usdtAmount);
         uint256 gmgTokens = ((usdtAmount * 1e6 * 1e18) / (presaleStage.pricePerToken));
@@ -253,7 +253,7 @@ contract Presale is Ownable2Step, ReentrancyGuard, IPresale {
         emit VestingTokensClaimed(_participant, 1, msg.sender == owner(), 0);
     }
 
-   function withdrawTokens(address _tokenAddress, address _to, uint256 _amount) public onlyPlatformAdmin nonReentrant {
+   function withdrawTokens(address _tokenAddress, address _to, uint256 _amount) public onlyOwner nonReentrant {
         IERC20 token = IERC20(_tokenAddress);
         uint256 balance = token.balanceOf(address(this));
         if(balance == 0) revert zero_token_balances();
