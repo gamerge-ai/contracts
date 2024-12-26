@@ -121,7 +121,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         emit TgeClaimed(_participant, claimableGMG, msg.sender == owner());
     }
 
-    function getRefferalAmount(ASSET asset) external afterTgeTrigger nonReentrant {
+    function claimRefferalAmount(ASSET asset) external afterTgeTrigger nonReentrant {
         bool success;
 
         if (asset == ASSET.BNB) {
