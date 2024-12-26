@@ -105,7 +105,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
     }
 
     function claimTGE(address _participant) external nonReentrant afterTgeTrigger {
-        if(msg.sender == _participant || msg.sender == owner()) revert only_participant_or_owner();
+        if(msg.sender != _participant && msg.sender != owner()) revert only_participant_or_owner();
 
         Participant storage participant = participantDetails[_participant];
 
