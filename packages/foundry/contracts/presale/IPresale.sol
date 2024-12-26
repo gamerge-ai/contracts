@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 interface IPresale {
-   enum ASSET{BNB, USDT}
+   enum ASSET{BNB, USDT, OTHER}
 
    /*
    --------------------------
@@ -48,7 +50,6 @@ interface IPresale {
    error cannot_claim_zero_amount();
    error total_gmg_sold_out(uint256 gmgLeft);
 
-
    /*
    --------------------------
    ----------EVENTS----------
@@ -61,6 +62,8 @@ interface IPresale {
    event TgeTriggered(uint256 triggeredAt, bool isTriggered);
    event TgeClaimed(address indexed claimedTo, uint256 amountClaimed, bool claimedByOwner);
    event VestingTokensClaimed(address indexed withdrawnTo, uint256 amountWithdrawn, bool withdrawnByOwner, uint256 remainingAmount);
+   event BnbRecoverySuccessful(address indexed to, uint256 amount);
+   event RecoverySuccessful(IERC20 indexed token, address indexed to, uint256 amount);
 
     /*
    --------------------------

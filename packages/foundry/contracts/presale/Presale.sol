@@ -147,6 +147,22 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         emit TgeTriggered(tgeTriggeredAt, isTgeTriggered);
     }
 
+    function recoverFunds(ASSET asset, IERC20 token, address to, uint256 amount) external onlyOwner nonReentrant {
+        if(asset == ASSET.BNB) {
+            (bool success, ) = to.call{value: amount}("");
+            require(success, "recovery failed");
+            emit BnbRecoverySuccessful(to, amount);
+        }
+        else if (asset == ASSET.USDT) {
+            _usdt.transfer(to, amount);
+            emit RecoverySuccessful(_usdt, to, amount);
+        }
+        else {
+            token.transfer(to, amount);
+            emit RecoverySuccessful(token, to, amount);
+        }
+    }
+
     /*
    --------------------------
    ----------VIEW FUNCTIONS----------
