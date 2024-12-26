@@ -4,10 +4,13 @@ pragma solidity 0.8.20;
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
 
 import "./IPresale.sol";
 
 contract PresaleFactory is Ownable2Step {
+    using SafeERC20 for IERC20;
 
     IPresale private immutable PRESALE_IMPL;
     address public BNB_PA;
@@ -38,7 +41,7 @@ contract PresaleFactory is Ownable2Step {
     ) public onlyOwner {
         IPresale newPresale = IPresale(Clones.clone(address(PRESALE_IMPL)));
         newPresale.initialize(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, 0, BNB_PA, GMG, USDT, address(this), msg.sender);
-        require(IERC20(GMG).transferFrom(msg.sender, address(newPresale), _tokenAllocation), "GMG transfer to presale failed");
+        IERC20(GMG).safeTransferFrom(msg.sender, address(newPresale), _tokenAllocation);
 
         validPresale[newPresale] = true;
 

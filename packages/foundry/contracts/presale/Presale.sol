@@ -5,11 +5,14 @@ import {IPresale} from "./IPresale.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {AggregatorV3Interface} from "@chainlink/brownie/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {PresaleFactory} from "./PresaleFactory.sol";
 
 
 contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
+
+    using SafeERC20 for IERC20;
     
     /// @notice Maximum purchase amount per address during presale (in USD)
     uint48 public constant MAX_PURCHASE_LIMIT = 1000 * 1e6;
@@ -98,8 +101,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
 
         _buyLogic(participant, referral, usdtAmount, ASSET.USDT);
 
-        bool success = _usdt.transferFrom(participant, address(this), usdtAmount);
-        require(success, "USDT transfer failed");
+        _usdt.safeTransferFrom(participant, address(this), usdtAmount);
     }
 
     function claimTGE(address _participant) external nonReentrant afterTgeTrigger {
@@ -116,21 +118,18 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         participant.releaseOnTGE = 0;
         participant.withdrawnGMG += claimableGMG;
 
-        gmg.transfer(_participant, claimableGMG);
+        gmg.safeTransfer(_participant, claimableGMG);
         
         emit TgeClaimed(_participant, claimableGMG, msg.sender == owner());
     }
 
     function claimRefferalAmount(ASSET asset) external afterTgeTrigger nonReentrant {
-        bool success;
-
         if (asset == ASSET.BNB) {
-            (success, ) = msg.sender.call{value: individualReferralBnb[msg.sender]}("");
+            (bool success, ) = msg.sender.call{value: individualReferralBnb[msg.sender]}("");
+            if(!success) revert referral_withdrawal_failed();
         } else {
-            success = _usdt.transfer(msg.sender, individualReferralUsdt[msg.sender]);
+            _usdt.safeTransfer(msg.sender, individualReferralUsdt[msg.sender]);
         }
-        
-        if(!success) revert referral_withdrawal_failed();
     }
 
     /*
@@ -154,11 +153,11 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
             emit BnbRecoverySuccessful(to, amount);
         }
         else if (asset == ASSET.USDT) {
-            _usdt.transfer(to, amount);
+            _usdt.safeTransfer(to, amount);
             emit RecoverySuccessful(_usdt, to, amount);
         }
         else {
-            token.transfer(to, amount);
+            token.safeTransfer(to, amount);
             emit RecoverySuccessful(token, to, amount);
         }
     }
@@ -201,7 +200,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         participant.releaseOnTGE += releaseOnTGE;
         participant.claimableVestedGMG += (gmgAmount - releaseOnTGE);
 
-        gmg.transfer(_participant, gmgAmount);
+        gmg.safeTransfer(_participant, gmgAmount);
 
         if(asset == ASSET.BNB) emit BoughtWithBnb(_participant, msg.value, gmgAmount);
         else emit BoughtWithUsdt(_participant, valueInUsd, gmgAmount);
@@ -236,7 +235,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
 
         participant.claimableVestedGMG -= claimableAmount;
         participant.withdrawnGMG += claimableAmount;
-        gmg.transfer(_participant, claimableAmount);
+        gmg.safeTransfer(_participant, claimableAmount);
 
         emit VestingTokensClaimed(_participant, 1, msg.sender == owner(), 0);
     }
