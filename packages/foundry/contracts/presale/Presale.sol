@@ -246,7 +246,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
 
     function claimVestingAmount(address _participant) public nonReentrant {
         if(msg.sender == _participant || msg.sender == owner()) revert only_participant_or_owner();
-        if(block.timestamp < tgeTriggeredAt + presaleInfo.cliff) revert cliff_period_not_ended();
+        if(block.timestamp < tgeTriggeredAt + presaleInfo.cliffPeriod) revert cliff_period_not_ended();
         Participant memory participant = participantDetails[_participant];
         if(participant.totalGMG <= participant.withdrawnGMG) revert everything_has_claimed();
         uint256 totalVestingAmount = (participant.totalGMG * ((100 - presaleInfo.tgePercentage) * BPS)) / (100 * BPS);

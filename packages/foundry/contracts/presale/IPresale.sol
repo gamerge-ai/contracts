@@ -15,7 +15,7 @@ interface IPresale {
    struct PresaleInfo {
         uint16 pricePerToken;
         uint88 allocation;
-        uint24 cliff;
+        uint24 cliffPeriod;
         uint8 vestingMonths;
         uint8 tgePercentage;
         uint8 presaleStage;
