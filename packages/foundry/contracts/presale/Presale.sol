@@ -38,7 +38,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
 
     /// @notice TGE info;
     uint256 public tgeTriggeredAt;
-    bool public isTgeTriggered = false;
+    bool public isTgeTriggered;
 
     /// @notice Mapping to store participant details
     mapping(address => Participant) public participantDetails;
@@ -46,15 +46,26 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
     mapping(address => uint256) public individualReferralBnb;
     mapping(address => uint256) public individualReferralUsdt;
 
-
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
+    bool public isPresaleStarted;
 
     modifier afterTgeTrigger() {
         if(!isTgeTriggered) revert tge_not_triggered();
         _;
+    }
+
+    modifier presaleStarted() {
+        if (!isPresaleStarted) revert presale_is_stopped();
+        _;
+    }
+
+    modifier onlyOwnerOrFactory() {
+        if (msg.sender != owner() && msg.sender != address(presaleFactory)) revert only_owner_or_factory();
+        _;
+    }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
     function initialize(
@@ -73,11 +84,13 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
             __Ownable_init(_owner);
 
         presaleFactory = PresaleFactory(_gmgRegistryAddress);
+
         presaleInfo = PresaleInfo(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, _presaleStage);
+
         bnbPriceAggregator = AggregatorV3Interface(_bnbPriceAggregator);
+
         gmg = IERC20(_gmgAddress);
         _usdt = IERC20(_usdtAddress);
-        emit PresaleStarted(_presaleStage);
     }
 
     /*
@@ -86,7 +99,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
    --------------------------
    */
 
-    function buyWithBnb(address referral) public nonReentrant payable {
+    function buyWithBnb(address referral) public override nonReentrant presaleStarted payable {
         address participant = msg.sender;
         uint256 decimals = bnbPriceAggregator.decimals() - 6;
         (, int256 latestPrice , , ,)  = bnbPriceAggregator.latestRoundData();
@@ -96,7 +109,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         _buyLogic(participant, referral, valueInUsd, ASSET.BNB);
     }
 
-    function buyWithUsdt(uint256 usdtAmount, address referral) external nonReentrant {
+    function buyWithUsdt(uint256 usdtAmount, address referral) external override nonReentrant presaleStarted {
         address participant = msg.sender;
 
         _buyLogic(participant, referral, usdtAmount, ASSET.USDT);
@@ -104,7 +117,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         _usdt.safeTransferFrom(participant, address(this), usdtAmount);
     }
 
-    function claimTGE(address _participant) external nonReentrant afterTgeTrigger {
+    function claimTGE(address _participant) external override nonReentrant afterTgeTrigger {
         if(msg.sender != _participant && msg.sender != owner()) revert only_participant_or_owner();
 
         Participant storage participant = participantDetails[_participant];
@@ -123,7 +136,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         emit TgeClaimed(_participant, claimableGMG, msg.sender == owner());
     }
 
-    function claimRefferalAmount(ASSET asset) external nonReentrant {
+    function claimRefferalAmount(ASSET asset) external override nonReentrant {
         if (asset == ASSET.BNB) {
             (bool success, ) = msg.sender.call{value: individualReferralBnb[msg.sender]}("");
             if(!success) revert referral_withdrawal_failed();
@@ -137,7 +150,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
    ----------EXTERNAL RESTRICTED FUNCTIONS----------
    --------------------------
    */
-    function triggerTGE() external onlyOwner {
+    function triggerTGE() external override onlyOwnerOrFactory {
         if(isTgeTriggered) revert tge_already_triggered();
 
         tgeTriggeredAt = block.timestamp;
@@ -146,7 +159,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         emit TgeTriggered(tgeTriggeredAt, isTgeTriggered);
     }
 
-    function recoverFunds(ASSET asset, IERC20 token, address to, uint256 amount) external onlyOwner nonReentrant {
+    function recoverFunds(ASSET asset, IERC20 token, address to, uint256 amount) external override onlyOwner nonReentrant {
         if(asset == ASSET.BNB) {
             (bool success, ) = to.call{value: amount}("");
             require(success, "recovery failed");
@@ -162,12 +175,28 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         }
     }
 
+    function startPresale() external override onlyOwnerOrFactory {
+        if(isPresaleStarted) revert presale_already_started();
+
+        isPresaleStarted = true;
+
+        emit PresaleStarted(presaleInfo.presaleStage);
+    }
+
+    function stopPresale() external override onlyOwnerOrFactory {
+        if(!isPresaleStarted) revert presale_already_stopped();
+
+        isPresaleStarted = false;
+
+        emit PresaleStopped(presaleInfo.presaleStage);
+    }
+
     /*
    --------------------------
    ----------VIEW FUNCTIONS----------
    --------------------------
    */
-    function calculateReferralAmount(uint256 amountInUsdtOrBnb) public pure returns(uint256 amountToReferral) {
+    function calculateReferralAmount(uint256 amountInUsdtOrBnb) public override pure returns(uint256 amountToReferral) {
         amountToReferral = (amountInUsdtOrBnb * (REFERRAL_BONUS * BPS)) / (100 * BPS);
     }
 

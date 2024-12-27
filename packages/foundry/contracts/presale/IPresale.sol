@@ -37,9 +37,9 @@ interface IPresale {
    */
 
    error max_limit_exceeded();
-   error null_address();
    error presale_ran_out_of_gmg();
    error only_participant_or_owner();
+   error only_owner_or_factory();
    error tge_already_triggered();
    error tge_not_triggered();
    error cliff_period_not_ended();
@@ -48,6 +48,9 @@ interface IPresale {
    error everything_has_claimed();
    error referral_withdrawal_failed();
    error cannot_claim_zero_amount();
+   error presale_is_stopped();
+   error presale_already_started();
+   error presale_already_stopped();
    error total_gmg_sold_out(uint256 gmgLeft);
 
    /*
@@ -57,6 +60,7 @@ interface IPresale {
    */
 
    event PresaleStarted(uint8 indexed presaleStage);
+   event PresaleStopped(uint8 indexed presaleStage);
    event BoughtWithBnb(address indexed buyer, uint256 amountInBnb, uint256 gmgTokens);
    event BoughtWithUsdt(address indexed buyer, uint256 amountInUsdt, uint256 gmgTokens);
    event TgeTriggered(uint256 triggeredAt, bool isTriggered);
@@ -83,5 +87,22 @@ interface IPresale {
         address _usdtAddress,
         address _gmgRegistryAddress,
         address _owner
-        ) external;
+    ) external;
+
+    // EXTERNAL OPEN FUNCTIONS
+    function buyWithBnb(address referral) external payable;
+    function buyWithUsdt(uint256 usdtAmount, address referral) external;
+    function claimTGE(address _participant) external;
+    function claimRefferalAmount(ASSET asset) external;
+
+    // EXTERNAL RESTRICTED FUNCTIONS
+    function triggerTGE() external;
+    function recoverFunds(ASSET asset, IERC20 token, address to, uint256 amount) external;
+    function startPresale() external;
+    function stopPresale() external;
+
+    // VIEW FUNCTIONS
+    function calculateReferralAmount(uint256 amountInUsdtOrBnb) external pure returns(uint256 amountToReferral);
+    function isPresaleStarted() external returns(bool);
+    function isTgeTriggered() external returns(bool);
 }
