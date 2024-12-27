@@ -65,7 +65,7 @@ contract PresaleFactory is Ownable2Step {
         gmg = _newGMG;
     }
     
-    function updatePresale(address _newPresale) external onlyOwner {
+    function updatePresaleImpl(address _newPresale) external onlyOwner {
         if(_newPresale == address(0)) revert zero_address();
         presaleImpl = IPresale(_newPresale);
     }

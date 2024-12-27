@@ -134,7 +134,6 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         if(claimableGMG == 0) revert cannot_claim_zero_amount();
         
         participant.releaseOnTGE = 0;
-        participant.withdrawnGMG += claimableGMG;
 
         gmg.safeTransfer(_participant, claimableGMG);
         
@@ -223,6 +222,9 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         if(gmgAmount > gmg.balanceOf(address(this))) revert presale_ran_out_of_gmg();
         gmgBought += gmgAmount;
 
+        // stop the presale if bought amount has reached allocation amount
+        if(gmgBought == presaleInfo.allocation) isPresaleStarted = false;
+
         _updateReferral(_referral, asset, msg.value);
         _createVestingWallet(_participant);
         
@@ -233,7 +235,6 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         participant.totalGMG += gmgAmount;
         uint256 releaseOnTGE = (gmgAmount * (presaleInfo.tgePercentage * BPS)) / (100 * BPS);
         participant.releaseOnTGE += releaseOnTGE;
-        participant.claimableVestedGMG += (gmgAmount - releaseOnTGE);
 
         if(asset == ASSET.BNB) emit BoughtWithBnb(_participant, msg.value, gmgAmount);
         else emit BoughtWithUsdt(_participant, valueInUsd, gmgAmount);
