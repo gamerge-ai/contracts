@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import {IPresale} from "./IPresale.sol";
+import {IPresale} from "./interfaces/IPresale.sol";
+import "./interfaces/IVesting.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -37,7 +39,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
     AggregatorV3Interface public bnbPriceAggregator;
 
     /// @notice TGE info;
-    uint256 public tgeTriggeredAt;
+    uint64 public tgeTriggeredAt;
     bool public isTgeTriggered;
 
     /// @notice Mapping to store participant details
@@ -45,6 +47,8 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
     /// @notice Mappings to store referral details
     mapping(address => uint256) public individualReferralBnb;
     mapping(address => uint256) public individualReferralUsdt;
+    /// @notice Mapping to store the vesting wallet addresses
+    mapping(address => IVesting) public vestingWallet;
 
     bool public isPresaleStarted;
 
@@ -82,6 +86,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         address _owner
         ) external override initializer {
             __Ownable_init(_owner);
+            __ReentrancyGuard_init();
 
         presaleFactory = PresaleFactory(_gmgRegistryAddress);
 
@@ -153,7 +158,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
     function triggerTGE() external override onlyOwnerOrFactory {
         if(isTgeTriggered) revert tge_already_triggered();
 
-        tgeTriggeredAt = block.timestamp;
+        tgeTriggeredAt = uint64(block.timestamp);
         isTgeTriggered = true;
 
         emit TgeTriggered(tgeTriggeredAt, isTgeTriggered);
@@ -219,6 +224,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         gmgBought += gmgAmount;
 
         _updateReferral(_referral, asset, msg.value);
+        _createVestingWallet(_participant);
         
         Participant memory participant = participantDetails[_participant];
         if(!participant.isParticipant) {
@@ -244,27 +250,13 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         }
     }
 
-    function claimVestingAmount(address _participant) public nonReentrant {
-        if(msg.sender == _participant || msg.sender == owner()) revert only_participant_or_owner();
-        if(block.timestamp < tgeTriggeredAt + presaleInfo.cliffPeriod) revert cliff_period_not_ended();
-        Participant memory participant = participantDetails[_participant];
-        if(participant.totalGMG <= participant.withdrawnGMG) revert everything_has_claimed();
-        uint256 totalVestingAmount = (participant.totalGMG * ((100 - presaleInfo.tgePercentage) * BPS)) / (100 * BPS);
+    function _createVestingWallet(address _participant) private {
+        if (address(vestingWallet[_participant]) == address(0)) {
+            IVesting newVestingWallet = IVesting(Clones.clone(address(presaleFactory.vestingImpl())));
+            vestingWallet[_participant] = newVestingWallet;
 
-        uint256 claimableMonths = participant.lastVestedClaimedAt == 0 ? 
-                                  (block.timestamp - tgeTriggeredAt) / 30 days :
-                                  (block.timestamp - participant.lastVestedClaimedAt) / 30 days;
-
-        if(claimableMonths == 0) revert nothing_to_claim();
-        uint256 monthlyClaimable = totalVestingAmount / presaleInfo.vestingMonths;
-        uint256 claimableAmount = participant.claimableVestedGMG < monthlyClaimable ? 
-                                  participant.claimableVestedGMG : monthlyClaimable;
-
-        participant.claimableVestedGMG -= claimableAmount;
-        participant.withdrawnGMG += claimableAmount;
-        gmg.safeTransfer(_participant, claimableAmount);
-
-        emit VestingTokensClaimed(_participant, 1, msg.sender == owner(), 0);
+            emit VestingWalletCreated(_participant, newVestingWallet);
+        }
     }
 
     receive() external payable{

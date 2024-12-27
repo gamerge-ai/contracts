@@ -2,6 +2,7 @@
 pragma solidity 0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./IVesting.sol";
 
 interface IPresale {
    enum ASSET{OTHER, BNB, USDT}
@@ -68,6 +69,7 @@ interface IPresale {
    event VestingTokensClaimed(address indexed withdrawnTo, uint256 amountWithdrawn, bool withdrawnByOwner, uint256 remainingAmount);
    event BnbRecoverySuccessful(address indexed to, uint256 amount);
    event RecoverySuccessful(IERC20 indexed token, address indexed to, uint256 amount);
+   event VestingWalletCreated(address indexed participant, IVesting indexed vesting);
 
     /*
    --------------------------

@@ -5,16 +5,17 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
-
-import "./IPresale.sol";
+import "./interfaces/IPresale.sol";
+import "./interfaces/IVesting.sol";
 
 contract PresaleFactory is Ownable2Step {
     using SafeERC20 for IERC20;
 
-    IPresale private immutable PRESALE_IMPL;
-    address public BNB_PA;
-    address public GMG;
+    IPresale private presaleImpl;
+    IVesting public vestingImpl;
+
+    address public bnb_pa;
+    address public gmg;
     address public immutable USDT;
 
     mapping(address => uint256) private _totalBoughtInUsd;
@@ -27,11 +28,12 @@ contract PresaleFactory is Ownable2Step {
     error zero_address();
     error unauthorized_presale();
 
-    constructor(IPresale _pre, address _bnbPA, address _gmg, address _usdt) Ownable(msg.sender) {
-        PRESALE_IMPL = _pre;
+    constructor(IPresale _pre, IVesting _vest, address _bnbPA, address _gmg, address _usdt) Ownable(msg.sender) {
+        presaleImpl = _pre;
+        vestingImpl = _vest;
 
-        BNB_PA = _bnbPA;
-        GMG = _gmg;
+        bnb_pa = _bnbPA;
+        gmg = _gmg;
         USDT = _usdt;
     }
 
@@ -43,9 +45,9 @@ contract PresaleFactory is Ownable2Step {
         uint8 _tgePercentages,
         uint8 _presaleStage
     ) public onlyOwner {
-        IPresale newPresale = IPresale(Clones.clone(address(PRESALE_IMPL)));
-        newPresale.initialize(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, _presaleStage, BNB_PA, GMG, USDT, address(this), msg.sender);
-        IERC20(GMG).safeTransferFrom(msg.sender, address(newPresale), _tokenAllocation);
+        IPresale newPresale = IPresale(Clones.clone(address(presaleImpl)));
+        newPresale.initialize(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, _presaleStage, bnb_pa, gmg, USDT, address(this), msg.sender);
+        IERC20(gmg).safeTransferFrom(msg.sender, address(newPresale), _tokenAllocation);
 
         validPresale[newPresale] = true;
         _presales.push(newPresale);
@@ -55,12 +57,22 @@ contract PresaleFactory is Ownable2Step {
 
     function updateBNB_PA(address _newBnbPA) external onlyOwner {
         if(_newBnbPA == address(0)) revert zero_address();
-        BNB_PA = _newBnbPA;
+        bnb_pa = _newBnbPA;
     }
 
     function updateGMG(address _newGMG) external onlyOwner {
         if(_newGMG == address(0)) revert zero_address();
-        GMG = _newGMG;
+        gmg = _newGMG;
+    }
+    
+    function updatePresale(address _newPresale) external onlyOwner {
+        if(_newPresale == address(0)) revert zero_address();
+        presaleImpl = IPresale(_newPresale);
+    }
+    
+    function updateVestingImpl(address _newVest) external onlyOwner {
+        if(_newVest == address(0)) revert zero_address();
+        vestingImpl = IVesting(_newVest);
     }
 
     function startAllPresales() external onlyOwner {
