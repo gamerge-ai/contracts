@@ -123,7 +123,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         emit TgeClaimed(_participant, claimableGMG, msg.sender == owner());
     }
 
-    function claimRefferalAmount(ASSET asset) external afterTgeTrigger nonReentrant {
+    function claimRefferalAmount(ASSET asset) external nonReentrant {
         if (asset == ASSET.BNB) {
             (bool success, ) = msg.sender.call{value: individualReferralBnb[msg.sender]}("");
             if(!success) revert referral_withdrawal_failed();
@@ -186,7 +186,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
 
         uint gmgB = gmgBought;
         if(gmgB+gmgAmount > presaleInfo.allocation) revert total_gmg_sold_out(presaleInfo.allocation-gmgB);
-        if(gmgAmount > gmg.balanceOf(address(this))) revert insufficient_tokens();
+        if(gmgAmount > gmg.balanceOf(address(this))) revert presale_ran_out_of_gmg();
         gmgBought += gmgAmount;
 
         _updateReferral(_referral, asset, msg.value);
@@ -199,8 +199,6 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         uint256 releaseOnTGE = (gmgAmount * (presaleInfo.tgePercentage * BPS)) / (100 * BPS);
         participant.releaseOnTGE += releaseOnTGE;
         participant.claimableVestedGMG += (gmgAmount - releaseOnTGE);
-
-        gmg.safeTransfer(_participant, gmgAmount);
 
         if(asset == ASSET.BNB) emit BoughtWithBnb(_participant, msg.value, gmgAmount);
         else emit BoughtWithUsdt(_participant, valueInUsd, gmgAmount);

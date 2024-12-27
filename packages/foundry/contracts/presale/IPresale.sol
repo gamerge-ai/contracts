@@ -38,7 +38,7 @@ interface IPresale {
 
    error max_limit_exceeded();
    error null_address();
-   error insufficient_tokens();
+   error presale_ran_out_of_gmg();
    error only_participant_or_owner();
    error tge_already_triggered();
    error tge_not_triggered();
