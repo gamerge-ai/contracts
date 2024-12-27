@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+pragma solidity 0.8.28;
 
-import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -45,7 +45,7 @@ contract PresaleFactory is Ownable2Step {
         uint8 _tgePercentages,
         uint8 _presaleStage
     ) public onlyOwner {
-        IPresale newPresale = IPresale(Clones.clone(address(presaleImpl)));
+        IPresale newPresale = IPresale(address(new ERC1967Proxy(address(vestingImpl), "")));
         newPresale.initialize(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, _presaleStage, bnb_pa, gmg, USDT, address(this), msg.sender);
         IERC20(gmg).safeTransferFrom(msg.sender, address(newPresale), _tokenAllocation);
 

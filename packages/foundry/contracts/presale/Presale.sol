@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+pragma solidity 0.8.28;
 
 import {IPresale} from "./interfaces/IPresale.sol";
 import "./interfaces/IVesting.sol";
-import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -12,7 +13,7 @@ import {AggregatorV3Interface} from "@chainlink/brownie/contracts/src/v0.8/share
 import {PresaleFactory} from "./PresaleFactory.sol";
 
 
-contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
+contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
 
     using SafeERC20 for IERC20;
     
@@ -87,15 +88,16 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         ) external override initializer {
             __Ownable_init(_owner);
             __ReentrancyGuard_init();
+            __UUPSUpgradeable_init();
 
-        presaleFactory = PresaleFactory(_gmgRegistryAddress);
+            presaleFactory = PresaleFactory(_gmgRegistryAddress);
 
-        presaleInfo = PresaleInfo(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, _presaleStage);
+            presaleInfo = PresaleInfo(_tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, _presaleStage);
 
-        bnbPriceAggregator = AggregatorV3Interface(_bnbPriceAggregator);
+            bnbPriceAggregator = AggregatorV3Interface(_bnbPriceAggregator);
 
-        gmg = IERC20(_gmgAddress);
-        _usdt = IERC20(_usdtAddress);
+            gmg = IERC20(_gmgAddress);
+            _usdt = IERC20(_usdtAddress);
     }
 
     /*
@@ -197,6 +199,16 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
 
     /*
    --------------------------
+   ----------UPGRADE RESTRICTION----------
+   --------------------------
+   */
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        onlyOwner
+        override {}
+
+    /*
+   --------------------------
    ----------VIEW FUNCTIONS----------
    --------------------------
    */
@@ -253,8 +265,9 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
 
     function _createVestingWallet(address _participant) private {
         if (address(vestingWallet[_participant]) == address(0)) {
-            IVesting newVestingWallet = IVesting(Clones.clone(address(presaleFactory.vestingImpl())));
-            newVestingWallet.initialize(tgeTriggeredAt, presaleInfo.cliffPeriod, _participant, presaleInfo.vestingMonths*30 days);
+            IVesting newVestingWallet = IVesting(address(new ERC1967Proxy(address(presaleFactory.vestingImpl()), "")));
+            newVestingWallet.initialize(tgeTriggeredAt, presaleInfo.cliffPeriod, _participant, presaleInfo.vestingMonths*30 days, presaleFactory.owner());
+
             vestingWallet[_participant] = newVestingWallet;
 
             emit VestingWalletCreated(_participant, newVestingWallet);

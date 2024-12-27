@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+pragma solidity 0.8.28;
 
 import {Ownable2StepUpgradeable, OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {VestingWalletUpgradeable} from "@openzeppelin/contracts-upgradeable/finance/VestingWalletUpgradeable.sol";
 import "./interfaces/IVesting.sol";
 
-contract Vesting is IVesting, Ownable2StepUpgradeable, VestingWalletUpgradeable {
+contract Vesting is IVesting, Ownable2StepUpgradeable, VestingWalletUpgradeable, UUPSUpgradeable {
 
     uint64 private _tgeTrigerredAt;
     uint64 private _cliffPeriod;
@@ -15,10 +16,11 @@ contract Vesting is IVesting, Ownable2StepUpgradeable, VestingWalletUpgradeable 
         _disableInitializers();
     }
 
-    function initialize(uint64 tgeTrigerredAt_, uint64 cliffPeriod_, address _beneficiary, uint64 _durationSeconds) external override initializer {
-        __Ownable_init(_beneficiary);
+    function initialize(uint64 tgeTrigerredAt_, uint64 cliffPeriod_, address _beneficiary, uint64 _durationSeconds, address _owner) external override initializer {
+        __Ownable_init(_owner);
         // passing 0 as the `startTimestamp` as its not going to be used in the vesting logic
         __VestingWallet_init_unchained(_beneficiary, 0, _durationSeconds);
+        __UUPSUpgradeable_init();
 
         _tgeTrigerredAt = tgeTrigerredAt_;
         _cliffPeriod = cliffPeriod_;
@@ -73,4 +75,15 @@ contract Vesting is IVesting, Ownable2StepUpgradeable, VestingWalletUpgradeable 
     function _transferOwnership(address newOwner) internal override(OwnableUpgradeable, Ownable2StepUpgradeable) {
         super._transferOwnership(newOwner);
     }
+
+    /*
+   --------------------------
+   ----------UPGRADE RESTRICTION----------
+   --------------------------
+   */
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        onlyOwner
+        override
+    {}
 }
