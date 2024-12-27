@@ -226,7 +226,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
         _updateReferral(_referral, asset, msg.value);
         _createVestingWallet(_participant);
         
-        Participant memory participant = participantDetails[_participant];
+        Participant storage participant = participantDetails[_participant];
         if(!participant.isParticipant) {
             participant.isParticipant = true;
         }
