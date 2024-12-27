@@ -253,6 +253,7 @@ contract Presale is IPresale, Ownable2StepUpgradeable, ReentrancyGuardUpgradeabl
     function _createVestingWallet(address _participant) private {
         if (address(vestingWallet[_participant]) == address(0)) {
             IVesting newVestingWallet = IVesting(Clones.clone(address(presaleFactory.vestingImpl())));
+            newVestingWallet.initialize(tgeTriggeredAt, presaleInfo.cliffPeriod, _participant, presaleInfo.vestingMonths*30 days);
             vestingWallet[_participant] = newVestingWallet;
 
             emit VestingWalletCreated(_participant, newVestingWallet);
