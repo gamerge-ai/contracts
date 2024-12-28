@@ -6,7 +6,7 @@ solc = "0.8.28"
 fs_permissions = [{ access = "read-write", path = "./"}]
 optimizer = true
 optimizer_runs = 10_000
-via-ir = true
+via_ir = true
 ignored_error_codes = ["unreachable"]
 
 [rpc_endpoints]
