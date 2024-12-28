@@ -91,6 +91,17 @@ contract PresaleTest is Test {
         assertEq(presaleImpl.tgeTriggeredAt(), 0, "presale TGE start time is not zero");
     }
 
+    function test_PresaleStartAndStop() public {
+        vm.startPrank(owner);
+        assertFalse(presaleImpl.isPresaleStarted(), "presale already started");
+        presaleImpl.startPresale();
+        assertTrue(presaleImpl.isPresaleStarted(), "presale not started");
+
+        presaleImpl.stopPresale();
+        assertFalse(presaleImpl.isPresaleStarted(), "presale already stopped");
+        vm.stopPrank();
+    }
+
     // function test_StartPresale() public {
     //     vm.startPrank(owner);
     //     assertEq(presale.isActive(), false, "Presale already active");
