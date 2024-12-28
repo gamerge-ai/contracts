@@ -49,28 +49,35 @@ contract PresaleFactory is Ownable2Step {
   }
 
   function createPresale(
-    uint16 _tokenPrice,
-    uint88 _tokenAllocation,
-    uint24 _cliff,
+    uint256 _tokenPrice,
+    uint256 _tokenAllocation,
+    uint64 _cliff,
     uint8 _vestingMonths,
     uint8 _tgePercentages,
     uint8 _presaleStage
   ) public onlyOwner {
-    IPresale newPresale =
-      IPresale(address(new ERC1967Proxy(address(vestingImpl), "")));
-    newPresale.initialize(
-      _tokenPrice,
-      _tokenAllocation,
-      _cliff,
-      _vestingMonths,
-      _tgePercentages,
-      _presaleStage,
-      bnb_pa,
-      gmg,
-      USDT,
-      address(this),
-      msg.sender
+    IPresale.InitParams memory params = IPresale.InitParams({
+      tokenPrice: _tokenPrice,
+      tokenAllocation: _tokenAllocation,
+      cliff: _cliff,
+      vestingMonths: _vestingMonths,
+      tgePercentages: _tgePercentages,
+      presaleStage: _presaleStage,
+      bnbPriceAggregator: bnb_pa,
+      gmgAddress: gmg,
+      usdtAddress: USDT,
+      presaleFactory: address(this),
+      owner: msg.sender
+    });
+
+    IPresale newPresale = IPresale(
+      address(
+        new ERC1967Proxy(
+          address(presaleImpl), abi.encodeCall(IPresale.initialize, (params))
+        )
+      )
     );
+
     IERC20(gmg).safeTransferFrom(
       msg.sender, address(newPresale), _tokenAllocation
     );

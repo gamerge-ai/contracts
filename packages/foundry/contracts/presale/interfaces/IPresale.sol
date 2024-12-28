@@ -18,9 +18,9 @@ interface IPresale {
    */
   /// @notice Details of single presale stage
   struct PresaleInfo {
-    uint16 pricePerToken;
-    uint88 allocation;
-    uint24 cliffPeriod;
+    uint256 pricePerToken;
+    uint256 allocation;
+    uint64 cliffPeriod;
     uint8 vestingMonths;
     uint8 tgePercentage;
     uint8 presaleStage;
@@ -31,6 +31,20 @@ interface IPresale {
     uint256 totalGMG; // Total GMG bought so far
     uint256 releaseOnTGE; // GMG amount to be released after TGE
     bool isParticipant;
+  }
+
+  struct InitParams {
+    uint256 tokenPrice;
+    uint256 tokenAllocation;
+    uint64 cliff;
+    uint8 vestingMonths;
+    uint8 tgePercentages;
+    uint8 presaleStage;
+    address bnbPriceAggregator;
+    address gmgAddress;
+    address usdtAddress;
+    address presaleFactory;
+    address owner;
   }
 
   /*
@@ -95,17 +109,7 @@ interface IPresale {
    */
 
   function initialize(
-    uint16 _tokenPrice,
-    uint88 _tokenAllocation,
-    uint24 _cliff,
-    uint8 _vestingMonths,
-    uint8 _tgePercentages,
-    uint8 _presaleStage,
-    address _bnbPriceAggregator,
-    address _gmgAddress,
-    address _usdtAddress,
-    address _gmgRegistryAddress,
-    address _owner
+    InitParams calldata params
   ) external;
 
   // EXTERNAL OPEN FUNCTIONS

@@ -85,37 +85,25 @@ contract Presale is
   }
 
   function initialize(
-    uint16 _tokenPrice,
-    uint88 _tokenAllocation,
-    uint24 _cliff,
-    uint8 _vestingMonths,
-    uint8 _tgePercentages,
-    uint8 _presaleStage,
-    address _bnbPriceAggregator,
-    address _gmgAddress,
-    address _usdtAddress,
-    address _gmgRegistryAddress,
-    address _owner
+    InitParams memory params
   ) external override initializer {
-    __Ownable_init(_owner);
+    __Ownable_init(params.owner);
     __ReentrancyGuard_init();
     __UUPSUpgradeable_init();
 
-    presaleFactory = PresaleFactory(_gmgRegistryAddress);
-
     presaleInfo = PresaleInfo(
-      _tokenPrice,
-      _tokenAllocation,
-      _cliff,
-      _vestingMonths,
-      _tgePercentages,
-      _presaleStage
+      params.tokenPrice,
+      params.tokenAllocation,
+      params.cliff,
+      params.vestingMonths,
+      params.tgePercentages,
+      params.presaleStage
     );
 
-    bnbPriceAggregator = AggregatorV3Interface(_bnbPriceAggregator);
-
-    gmg = IERC20(_gmgAddress);
-    _usdt = IERC20(_usdtAddress);
+    presaleFactory = PresaleFactory(params.presaleFactory);
+    bnbPriceAggregator = AggregatorV3Interface(params.bnbPriceAggregator);
+    gmg = IERC20(params.gmgAddress);
+    _usdt = IERC20(params.usdtAddress);
   }
 
   /*
