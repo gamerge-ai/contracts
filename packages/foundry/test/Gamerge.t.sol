@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 import "../contracts/Gamerge.sol";
 
 contract GamergeTest is Test {
-
   address owner = makeAddr("owner");
   Gamerge public gamerge;
 
