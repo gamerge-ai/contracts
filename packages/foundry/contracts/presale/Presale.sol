@@ -86,7 +86,7 @@ contract Presale is
   }
 
   function initialize(
-    InitParams memory params
+    InitParams calldata params
   ) external override initializer {
     __Ownable_init(params.owner);
     __ReentrancyGuard_init();
