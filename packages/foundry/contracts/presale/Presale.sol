@@ -36,7 +36,7 @@ contract Presale is
   /// @notice reference to the GMG ERC20 token
   IERC20 public gmg;
   /// @notice reference to the USDT ERC20 token
-  IERC20 private _usdt;
+  IERC20 public _usdt;
 
   /// @notice struct holding all the info about this presale round
   PresaleInfo public presaleInfo;
