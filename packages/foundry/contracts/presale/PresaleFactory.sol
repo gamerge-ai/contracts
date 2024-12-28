@@ -55,7 +55,7 @@ contract PresaleFactory is Ownable2Step {
     uint8 _vestingMonths,
     uint8 _tgePercentages,
     uint8 _presaleStage
-  ) public onlyOwner {
+  ) public onlyOwner returns(address){
     IPresale.InitParams memory params = IPresale.InitParams({
       tokenPrice: _tokenPrice,
       tokenAllocation: _tokenAllocation,
@@ -86,7 +86,9 @@ contract PresaleFactory is Ownable2Step {
     _presales.push(newPresale);
 
     emit NewPresaleCreated(newPresale);
+    return address(newPresale);
   }
+
 
   function updateBNB_PA(
     address _newBnbPA
