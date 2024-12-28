@@ -1,181 +1,288 @@
-// // SPDX-License-Identifier: MIT
-// pragma solidity 0.8.28;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
 
-// import "forge-std/Test.sol";
-// import "../contracts/presale/Presale.sol";
-// import "../contracts/presale/PresaleFactory.sol";
-// import "../contracts/presale/interfaces/IPresale.sol";
-// import "./mocks/MockERC20.sol";
-// import "./mocks/MockPriceAggregator.sol";
+import "forge-std/Test.sol";
+import "forge-std/console.sol";
+import "../contracts/presale/Presale.sol";
+import "../contracts/presale/PresaleFactory.sol";
+import "../contracts/presale/Vesting.sol";
+import "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import "@chainlink/brownie/contracts/src/v0.8/tests/MockV3Aggregator.sol";
 
-// contract PresaleTest is Test {
-//   Presale public presaleImpl;
-//   PresaleFactory public factory;
-//   MockERC20 public gmg;
-//   MockERC20 public usdt;
-//   MockPriceAggregator public priceAggregator;
-//   address public owner;
-//   address public user1;
-//   address public user2;
+contract PresaleTest is Test {
+  Presale public presale;
+  PresaleFactory public factory;
+  Vesting public vesting;
 
-//   event PresaleStarted(uint8 presaleStage);
-//   event BoughtWithBnb(
-//     address indexed participant, uint256 bnbAmount, uint256 gmgAmount
-//   );
-//   event BoughtWithUsdt(
-//     address indexed participant, uint256 usdtAmount, uint256 gmgAmount
-//   );
+  ERC20Mock public gmg;
+  ERC20Mock public usdt;
+  MockV3Aggregator public bnbPriceAggregator;
 
-//   function setUp() public {
-//     owner = address(this);
-//     user1 = makeAddr("user1");
-//     user2 = makeAddr("user2");
+  address public owner = makeAddr("owner");
+  address public participant = makeAddr("participant");
+  address public referral = makeAddr("referral");
 
-//     gmg = new MockERC20("GMG Token", "GMG");
-//     usdt = new MockERC20("USDT", "USDT");
-//     priceAggregator = new MockPriceAggregator();
+  uint16 public tokenPrice = 1000;
+  uint88 public tokenAllocation = 1_000_000 * 1e18;
+  uint64 public cliff = 30 days;
+  uint8 public vestingMonths = 12;
+  uint8 public tgePercentages = 10;
+  uint8 public presaleStage = 1;
 
-//     presaleImpl = new Presale();
-//     factory = new PresaleFactory(
-//       IPresale(address(presaleImpl)),
-//       IVesting(address(0)), // Will be set later
-//       address(priceAggregator),
-//       address(gmg),
-//       address(usdt)
-//     );
+  struct Participant {
+    uint256 totalGMG;
+    uint256 withdrawnGMG;
+    uint256 releaseOnTGE;
+    uint256 claimableVestedGMG;
+    uint256 lastVestedClaimedAt;
+    bool isParticipant;
+  }
 
-//     // Initialize presale parameters
-//     uint16 tokenPrice = 100; // $0.1
-//     uint88 tokenAllocation = 1_000_000 * 1e18;
-//     uint24 cliff = 180 days;
-//     uint8 vestingMonths = 12;
-//     uint8 tgePercentages = 10;
-//     uint8 presaleStage = 1;
+  event PresaleStarted(uint8 presaleStage);
+  event BoughtWithBnb(
+    address indexed participant, uint256 bnbAmount, uint256 gmgAmount
+  );
+  event BoughtWithUsdt(
+    address indexed participant, uint256 usdtAmount, uint256 gmgAmount
+  );
 
-//     // Mint tokens to owner
-//     gmg.mint(owner, tokenAllocation);
-//     gmg.approve(address(factory), tokenAllocation);
+  function setUp() public {
+    vm.startPrank(owner);
 
-//     // Create presale
-//     factory.createPresale(
-//       tokenPrice,
-//       tokenAllocation,
-//       cliff,
-//       vestingMonths,
-//       tgePercentages,
-//       presaleStage
-//     );
+    gmg = new ERC20Mock();
+    gmg.mint(owner, 1_000_000_000_000 * 1e18);
+    usdt = new ERC20Mock();
+    usdt.mint(owner, 1_000_000_000 * 1e18);
+    bnbPriceAggregator = new MockV3Aggregator(18, 1000 * 1e18);
 
-//     IPresale[] memory presales = factory.getAllPresales();
-//     presaleImpl = Presale(payable(address(presales[0])));
-//   }
+    Presale presaleImpl = new Presale();
+    Vesting vestingImpl = new Vesting();
+    factory = new PresaleFactory(
+      IPresale(address(presaleImpl)),
+      IVesting(address(vestingImpl)),
+      address(bnbPriceAggregator),
+      address(gmg),
+      address(usdt)
+    );
+    gmg.approve(address(factory), 1_000_000 * 1e18);
+    address presaleAddress = factory.createPresale(
+      tokenPrice,
+      tokenAllocation,
+      cliff,
+      vestingMonths,
+      tgePercentages,
+      presaleStage
+    );
+    presale = Presale(payable(presaleAddress));
+    vm.stopPrank();
+  }
 
-//   function testInitialization() view public {
-//     assertEq(address(presaleImpl.gmg()), address(gmg));
-//     assertEq(presaleImpl.owner(), owner);
+  function test_initialization() public view {
+    assertEq(address(presale.gmg()), address(gmg), "GMG address mismatch");
+    assertEq(address(presale._usdt()), address(usdt), "USDT address mismatch");
+    assertEq(presale.owner(), owner, "owners are not same");
+    (
+      uint256 price,
+      uint256 allocation,
+      uint64 _cliff,
+      uint8 _vestingMonths,
+      uint8 _tgePercentages,
+    ) = presale.presaleInfo();
+    assertEq(allocation, tokenAllocation, "token allocation mismatch");
+    assertEq(_cliff, cliff, "cliff mismatch");
+    assertEq(_vestingMonths, vestingMonths, "vesting months mismatch");
+    assertEq(_tgePercentages, tgePercentages, "tge percentages mismatch");
+    assertEq(vestingMonths, vestingMonths, "vesting months mismatch");
+    assertEq(price, tokenPrice, "token price mismatch");
+    // assertEq(presale.presaleStartTime(), 0, "presale start time is not zero");
+    assertEq(presale.isTgeTriggered(), false, "presale TGE already active");
+    assertEq(presale.tgeTriggeredAt(), 0, "presale TGE start time is not zero");
+  }
 
-//     (uint256 price,,,,,) = presaleImpl.presaleInfo();
-//     assertEq(price, 100);
-//   }
+  function test_PresaleStartAndStop() public {
+    vm.startPrank(owner);
+    assertFalse(presale.isPresaleStarted(), "presale already started");
+    presale.startPresale();
+    assertTrue(presale.isPresaleStarted(), "presale not started");
 
-//   function testBuyWithBnb() public {
-//     vm.deal(user1, 10 ether);
+    presale.stopPresale();
+    assertFalse(presale.isPresaleStarted(), "presale already stopped");
+    vm.stopPrank();
+  }
 
-//     vm.startPrank(owner);
-//     presaleImpl.startPresale();
-//     vm.stopPrank();
+  function test_BuyWithBnb(
+    uint256 bnbAmount
+  ) public {
+    vm.assume(bnbAmount > 1 * 1e14 && bnbAmount < 1 * 1e18);
+    vm.deal(participant, bnbAmount);
+    uint256 bnbInUsd = 1000 * 1e6;
+    uint256 valueInUsd = (bnbInUsd * bnbAmount) / 1e18;
+    uint256 expectedGMG = (valueInUsd * 1e18) / (tokenPrice);
 
-//     vm.startPrank(user1);
-//     vm.expectEmit(true, false, false, true);
-//     emit BoughtWithBnb(user1, 1 ether, 30_000 * 1e18); // Assuming 1 BNB = $3000
-//     presaleImpl.buyWithBnb{ value: 1 ether }(address(0));
-//     vm.stopPrank();
+    vm.startPrank(owner);
+    presale.startPresale();
+    vm.stopPrank();
 
-//     assertEq(presaleImpl.gmgBought(), 30_000 * 1e18);
-//   }
+    vm.startPrank(participant);
+    presale.buyWithBnb{ value: bnbAmount }(referral);
+    vm.stopPrank();
 
-//   function testBuyWithUsdt() public {
-//     uint256 usdtAmount = 1000 * 1e6; // $1000
-//     usdt.mint(user1, usdtAmount);
+    emit BoughtWithBnb(participant, bnbAmount, expectedGMG);
+    (uint256 totalGMG, uint256 releaseOnTGE, bool isParticipant) =
+      presale.participantDetails(participant);
+    assertEq(totalGMG, expectedGMG, "GMG mismatch");
+    assertEq(
+      releaseOnTGE,
+      (expectedGMG * tgePercentages) / 100,
+      "release on tge amount mismatch"
+    );
+    assertTrue(isParticipant, "isParticipant should be true");
+  }
 
-//     vm.startPrank(owner);
-//     presaleImpl.startPresale();
-//     vm.stopPrank();
+  function test_BuyWithUsdt(
+    uint256 usdtAmount
+  ) public {
+    vm.assume(usdtAmount <= 1000 && usdtAmount > 1);
+    uint256 expectedGMG = (usdtAmount * 1e18) / (tokenPrice);
 
-//     vm.startPrank(user1);
-//     usdt.approve(address(presaleImpl), usdtAmount);
-//     vm.expectEmit(true, false, false, true);
-//     emit BoughtWithUsdt(user1, usdtAmount, 10_000 * 1e18);
-//     presaleImpl.buyWithUsdt(usdtAmount, address(0));
-//     vm.stopPrank();
+    vm.startPrank(owner);
+    presale.startPresale();
+    usdt.transfer(participant, usdtAmount);
+    vm.stopPrank();
 
-//     assertEq(presaleImpl.gmgBought(), 10_000 * 1e18);
-//   }
+    vm.startPrank(participant);
 
-//   function testFuzz_BuyWithBnb(
-//     uint256 bnbAmount
-//   ) public {
-//     vm.assume(bnbAmount > 0.01 ether && bnbAmount < 100 ether);
-//     vm.deal(user1, bnbAmount);
+    usdt.approve(address(presale), usdtAmount);
+    presale.buyWithUsdt(usdtAmount, referral);
 
-//     vm.startPrank(owner);
-//     presaleImpl.startPresale();
-//     vm.stopPrank();
+    uint256 amountToReferral = (usdtAmount * 10) / 100;
+    uint256 currentReferralAmount = presale.individualReferralUsdt(referral);
+    uint256 expectedContractUsdtBalance = usdtAmount - ((usdtAmount * 10) / 100);
+    assertEq(
+      usdt.balanceOf(address(presale)) - currentReferralAmount,
+      expectedContractUsdtBalance,
+      "Presale contract USDT balance mismatch"
+    );
+    assertEq(currentReferralAmount, amountToReferral);
 
-//     vm.startPrank(user1);
-//     presaleImpl.buyWithBnb{ value: bnbAmount }(address(0));
-//     vm.stopPrank();
+    (uint256 totalGMG, uint256 releaseOnTGE, bool isParticipant) =
+      presale.participantDetails(participant);
+    assertEq(totalGMG, expectedGMG, "GMG mismatch");
+    assertEq(
+      releaseOnTGE,
+      (totalGMG * tgePercentages) / 100,
+      "release on tge amount mismatch"
+    );
+    assertTrue(isParticipant);
+    vm.stopPrank();
+  }
 
-//     assertTrue(presaleImpl.gmgBought() > 0);
-//   }
+  // function test_StartPresale() public {
+  //     vm.startPrank(owner);
+  //     assertEq(presale.isActive(), false, "Presale already active");
+  //     assertEq(presale.presaleStartTime(), 0, "presale start time is not zero");
+  //     (uint256 startTime, bool isActive) = presale.startPresale();
+  //     assertEq(owner, presale.owner(), "owners are not same");
 
-//   function testMaxPurchaseLimit() public {
-//     uint256 usdtAmount = 1001 * 1e6; // $1001 (above limit)
-//     usdt.mint(user1, usdtAmount);
+  //     assertEq(isActive, true, "Presale should be active");
+  //     assertEq(presale.presaleStartTime(), startTime, "Presale start time mismatch");
+  //     // assertEq(address(presale), address(this), "both not same");
+  //     // assertEq(factory.authorizedPresale(address(this)), true, "not authorized dude...");
+  //     vm.stopPrank();
+  // }
 
-//     vm.startPrank(owner);
-//     presaleImpl.startPresale();
-//     vm.stopPrank();
+  // function test_BuyWithBnb(uint256 bnbAmount) public {
 
-//     vm.startPrank(user1);
-//     usdt.approve(address(presaleImpl), usdtAmount);
-//     vm.expectRevert(IPresale.max_limit_exceeded.selector);
-//     presaleImpl.buyWithUsdt(usdtAmount, address(0));
-//     vm.stopPrank();
-//   }
+  //     vm.assume(bnbAmount > 1* 1e14 && bnbAmount < 1 * 1e18);
+  //     uint256 bnbInUsd = 1000 * 1e6;
+  //     uint256 valueInUsd = (bnbInUsd * bnbAmount) / 1e18;
+  //     uint256 expectedGMG = (valueInUsd * 1e18) / (tokenPrice);
 
-//   function testReferralBonus() public {
-//     uint256 usdtAmount = 1000 * 1e6;
-//     usdt.mint(user1, usdtAmount);
+  //     vm.deal(participant, bnbAmount);
 
-//     vm.startPrank(owner);
-//     presaleImpl.startPresale();
-//     vm.stopPrank();
+  //     vm.prank(owner);
+  //     presale.startPresale();
+  //     vm.prank(participant);
+  //     presale.buyWithBnb{value: bnbAmount}(referral);
 
-//     vm.startPrank(user1);
-//     usdt.approve(address(presaleImpl), usdtAmount);
-//     presaleImpl.buyWithUsdt(usdtAmount, user2);
-//     vm.stopPrank();
+  //     uint256 expectedContractBalance = bnbAmount - ((bnbAmount * 10) / 100);
+  //     assertEq(address(presale).balance, expectedContractBalance, "Presale contract balance mismatch");
+  //     assertEq(address(referral).balance, ((bnbAmount * 10) / 100));
 
-//     assertEq(presaleImpl.individualReferralUsdt(user2), 100 * 1e6); // 10% bonus
-//   }
+  //     (uint256 totalGMG, , , , , ) = presale.participantDetails(participant);
+  //     assertEq(totalGMG, expectedGMG, "GMG mismatch");
+  // }
 
-//   function testTGETrigger() public {
-//     vm.startPrank(owner);
-//     presaleImpl.triggerTGE();
-//     assertTrue(presaleImpl.isTgeTriggered());
-//     vm.expectRevert(IPresale.tge_already_triggered.selector);
-//     presaleImpl.triggerTGE();
-//     vm.stopPrank();
-//   }
+  // function test_BuyWithUsdt(uint256 usdtAmount) public {
+  //     vm.assume(usdtAmount <= 1000 && usdtAmount > 1);
+  //     uint256 expectedGMG = (usdtAmount * 1e6 * 1e18) / (tokenPrice) ;
 
-//   function testPresaleStartStop() public {
-//     vm.startPrank(owner);
-//     presaleImpl.startPresale();
-//     assertTrue(presaleImpl.isPresaleStarted());
+  //     vm.startPrank(owner);
+  //     presale.startPresale();
+  //     usdt.transfer(participant, usdtAmount);
+  //     vm.stopPrank();
 
-//     presaleImpl.stopPresale();
-//     assertFalse(presaleImpl.isPresaleStarted());
-//     vm.stopPrank();
-//   }
-// }
+  //     vm.startPrank(participant);
+  //     usdt.approve(address(presale), usdtAmount);
+  //     presale.buyWithUsdt(usdtAmount, referral);
+
+  //     uint256 expectedContractUsdtBalance = usdtAmount - ((usdtAmount * 10) / 100);
+  //     assertEq(usdt.balanceOf(address(presale)), expectedContractUsdtBalance, "Presale contract USDT balance mismatch");
+  //     assertEq(usdt.balanceOf(referral), ((usdtAmount * 10) / 100));
+
+  //     (uint256 totalGMG, uint256 withdrawnGMG, uint256 releaseOnTGE, uint256 claimableVestedGMG, uint256 lastVestedClaimedAt, bool isParticipant) = presale.participantDetails(participant);
+  //     assertEq(totalGMG, expectedGMG, "GMG mismatch");
+  //     assertEq(releaseOnTGE, (totalGMG * tgePercentages) /100, "release on tge amount mismatch");
+  //     assertEq(claimableVestedGMG, (totalGMG * ( 100 - tgePercentages)) /100);
+  //     assertTrue(isParticipant);
+  //     assertEq(lastVestedClaimedAt, 0, "last vested should be zero");
+  //     vm.stopPrank();
+  // }
+
+  // function test_triggerTGE() public {
+  //     vm.startPrank(owner);
+  //     presale.startPresale();
+  //     assertEq(presale.isTgeTriggered(), false, "presale TGE already active");
+  //     assertEq(presale.tgeTriggeredAt(), 0, "presale TGE start time is not zero");
+  //     presale.triggerTGE();
+  //     assertTrue(presale.isTgeTriggered());
+  //     vm.stopPrank();
+  // }
+
+  // function testFuzz_claimTGE(uint256 amountInUsd) public {
+  //     vm.assume(amountInUsd <= 1000 && amountInUsd > 1);
+  //     vm.startPrank(owner);
+  //     presale.startPresale();
+  //     usdt.transfer(participant, amountInUsd);
+  //     presale.triggerTGE();
+  //     vm.stopPrank();
+
+  //     vm.startPrank(participant);
+  //     usdt.approve(address(presale), amountInUsd);
+  //     presale.buyWithUsdt(amountInUsd, referral);
+  //     (, , uint256 releaseOnTGE, , , ) = presale.participantDetails(participant);
+  //     presale.claimTGE(participant);
+  //     (, uint256 withdrawnGMGAfter, uint256 releaseOnTGEAfter, , , ) = presale.participantDetails(participant);
+  //     assertEq(gmg.balanceOf(participant), releaseOnTGE, "balanceOf(participant) and releaseOnTGE mismatch");
+  //     assertEq(gmg.balanceOf(participant), withdrawnGMGAfter, "withdrawn and balanceOf(participant) mismatch");
+  //     assertEq(releaseOnTGEAfter, 0, "release on tge should be zero after claiming TGE");
+  // }
+
+  // function testFuzz_claimVestingAmount(uint256 amountInUsd) public {
+  //     testFuzz_claimTGE(amountInUsd);
+  //     vm.startPrank(participant);
+  //     (uint256 totalGMG, uint256 withdrawnGMG, uint256 releaseOnTGE, uint256 claimableVestedGMG, , ) = presale.participantDetails(participant);
+  //     uint256 totalVestingAmount = (totalGMG * ((100 - tgePercentages))) / (100);
+  //     uint256 monthlyClaimable = totalVestingAmount / vestingMonths;
+  //     uint256 claimableAmount = claimableVestedGMG < monthlyClaimable ?
+  //                               claimableVestedGMG : monthlyClaimable;
+  //     uint256 _cliff = cliff;
+  //     vm.warp(block.timestamp + cliff);
+  //     uint256 tgeTriggeredAtSlot = 8;
+  //     vm.store(address(presale), bytes32(tgeTriggeredAtSlot), bytes32(block.timestamp - _cliff));
+  //     presale.claimVestingAmount(participant);
+  //     (uint256 totalGMGAfter, uint256 withdrawnGMGAfter, uint256 releaseOnTGEAfter, uint256 claimableVestedGMGAfter, , ) = presale.participantDetails(participant);
+  //     assertEq(gmg.balanceOf(participant), withdrawnGMGAfter, "withdrawn and balanceOf(participant) mismatch");
+  //     assertEq(claimableVestedGMGAfter, (claimableVestedGMG - claimableAmount), "claimableVestedGMGAfter and (vestedAmount + claimed amount) mismatch");
+  // }
+}

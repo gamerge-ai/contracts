@@ -12,10 +12,10 @@ interface IPresale {
   }
 
   /*
-   --------------------------
-   ----------STRUCTS----------
-   --------------------------
-   */
+    --------------------------
+    ----------STRUCTS----------
+    --------------------------
+    */
   /// @notice Details of single presale stage
   struct PresaleInfo {
     uint256 pricePerToken;
@@ -48,10 +48,10 @@ interface IPresale {
   }
 
   /*
-   --------------------------
-   ----------ERRORS----------
-   --------------------------
-   */
+    --------------------------
+    ----------ERRORS----------
+    --------------------------
+    */
 
   error max_limit_exceeded();
   error presale_ran_out_of_gmg();
@@ -71,10 +71,10 @@ interface IPresale {
   error total_gmg_sold_out(uint256 gmgLeft);
 
   /*
-   --------------------------
-   ----------EVENTS----------
-   --------------------------
-   */
+    --------------------------
+    ----------EVENTS----------
+    --------------------------
+    */
 
   event PresaleStarted(uint8 indexed presaleStage);
   event PresaleStopped(uint8 indexed presaleStage);
@@ -103,10 +103,10 @@ interface IPresale {
   );
 
   /*
-   --------------------------
-   ----------FUNCTIONS----------
-   --------------------------
-   */
+    --------------------------
+    ----------FUNCTIONS----------
+    --------------------------
+    */
 
   function initialize(
     InitParams calldata params
@@ -141,4 +141,5 @@ interface IPresale {
   ) external pure returns (uint256 amountToReferral);
   function isPresaleStarted() external returns (bool);
   function isTgeTriggered() external returns (bool);
+  function tgeTriggeredAt() external view returns (uint64);
 }

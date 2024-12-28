@@ -1,23 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {
-  Ownable2StepUpgradeable,
-  OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import { OwnableUpgradeable } from
+  "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { UUPSUpgradeable } from
   "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import { VestingWalletUpgradeable } from
   "@openzeppelin/contracts-upgradeable/finance/VestingWalletUpgradeable.sol";
 import "./interfaces/IVesting.sol";
+import "./interfaces/IPresale.sol";
 
-contract Vesting is
-  IVesting,
-  Ownable2StepUpgradeable,
-  VestingWalletUpgradeable,
-  UUPSUpgradeable
-{
-  uint64 private _tgeTrigerredAt;
+contract Vesting is IVesting, VestingWalletUpgradeable, UUPSUpgradeable {
+  address private _owner;
+  IPresale private _presale;
   uint64 private _cliffPeriod;
 
   /// @custom:oz-upgrades-unsafe-allow constructor
@@ -26,39 +21,39 @@ contract Vesting is
   }
 
   function initialize(
-    uint64 tgeTrigerredAt_,
+    IPresale presale,
     uint64 cliffPeriod_,
     address _beneficiary,
-    uint64 _durationSeconds,
-    address _owner
+    uint256 _months,
+    address owner_
   ) external override initializer {
-    __Ownable_init(_owner);
+    __Ownable_init(_beneficiary);
     // passing 0 as the `startTimestamp` as its not going to be used in the vesting logic
-    __VestingWallet_init_unchained(_beneficiary, 0, _durationSeconds);
-    __UUPSUpgradeable_init();
+    __VestingWallet_init_unchained(_beneficiary, 0, uint64(_months * 30 days));
 
-    _tgeTrigerredAt = tgeTrigerredAt_;
+    _owner = owner_;
+    _presale = presale;
     _cliffPeriod = cliffPeriod_;
   }
 
   function start() public view override returns (uint256 startTimestamp) {
-    startTimestamp = _tgeTrigerredAt + _cliffPeriod;
+    startTimestamp = _presale.tgeTriggeredAt() + _cliffPeriod;
   }
 
   function _vestingSchedule(
     uint256 totalAllocation,
     uint64 timestamp
   ) internal view override returns (uint256) {
-    if (_tgeTrigerredAt == 0) return 0;
+    if (_presale.tgeTriggeredAt() == 0) return 0;
 
     return super._vestingSchedule(totalAllocation, timestamp);
   }
 
   /*
-   --------------------------
-   ----------TURNING OFF BNB SUPPORT----------
-   --------------------------
-   */
+    --------------------------
+    ----------TURNING OFF BNB SUPPORT----------
+    --------------------------
+    */
 
   function released() public pure override returns (uint256) {
     revert bnb_not_supported();
@@ -83,29 +78,13 @@ contract Vesting is
   }
 
   /*
-   --------------------------
-   ----------REQUIRED OVERRIDES----------
-   --------------------------
-   */
-  function transferOwnership(
-    address newOwner
-  ) public override(OwnableUpgradeable, Ownable2StepUpgradeable) onlyOwner {
-    super.transferOwnership(newOwner); // this?
-      // Ownable2StepUpgradeable.transferOwnership(newOwner); // or this?
-  }
-
-  function _transferOwnership(
-    address newOwner
-  ) internal override(OwnableUpgradeable, Ownable2StepUpgradeable) {
-    super._transferOwnership(newOwner);
-  }
-
-  /*
-   --------------------------
-   ----------UPGRADE RESTRICTION----------
-   --------------------------
-   */
+    --------------------------
+    ----------UPGRADE RESTRICTION----------
+    --------------------------
+    */
   function _authorizeUpgrade(
-    address newImplementation
-  ) internal override onlyOwner { }
+    address
+  ) internal view override {
+    require(msg.sender == _owner, "upgrade unauthorized");
+  }
 }

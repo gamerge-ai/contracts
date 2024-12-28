@@ -5,16 +5,16 @@ import "forge-std/Test.sol";
 import "../contracts/presale/PresaleFactory.sol";
 import "../contracts/presale/Presale.sol";
 import "../contracts/presale/Vesting.sol";
-import "./mocks/MockERC20.sol";
-import "./mocks/MockPriceAggregator.sol";
+import "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import "@chainlink/brownie/contracts/src/v0.8/tests/MockV3Aggregator.sol";
 
 contract PresaleFactoryTest is Test {
   PresaleFactory public factory;
   Presale public presaleImpl;
   Vesting public vestingImpl;
-  MockERC20 public gmg;
-  MockERC20 public usdt;
-  MockPriceAggregator public priceAggregator;
+  ERC20Mock public gmg;
+  ERC20Mock public usdt;
+  MockV3Aggregator public priceAggregator;
   address public owner;
   address public user1;
 
@@ -24,9 +24,9 @@ contract PresaleFactoryTest is Test {
     owner = address(this);
     user1 = makeAddr("user1");
 
-    gmg = new MockERC20("GMG Token", "GMG");
-    usdt = new MockERC20("USDT", "USDT");
-    priceAggregator = new MockPriceAggregator();
+    gmg = new ERC20Mock();
+    usdt = new ERC20Mock();
+    priceAggregator = new MockV3Aggregator(18, 1000 * 1e18);
 
     presaleImpl = new Presale();
     vestingImpl = new Vesting();

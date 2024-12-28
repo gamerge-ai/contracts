@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IPresale } from "./interfaces/IPresale.sol";
+import { Vesting } from "./Vesting.sol";
 import "./interfaces/IVesting.sol";
 import { ERC1967Proxy } from
   "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -58,7 +59,7 @@ contract Presale is
   mapping(address => uint256) public individualReferralBnb;
   mapping(address => uint256) public individualReferralUsdt;
   /// @notice Mapping to store the vesting wallet addresses
-  mapping(address => IVesting) public vestingWallet;
+  mapping(address => Vesting) public vestingWallet;
 
   bool public isPresaleStarted;
 
@@ -107,10 +108,10 @@ contract Presale is
   }
 
   /*
-   --------------------------
-   ----------EXTERNAL OPEN FUNCTIONS----------
-   --------------------------
-   */
+    --------------------------
+    ----------EXTERNAL OPEN FUNCTIONS----------
+    --------------------------
+    */
 
   function buyWithBnb(
     address referral
@@ -170,10 +171,10 @@ contract Presale is
   }
 
   /*
-   --------------------------
-   ----------EXTERNAL RESTRICTED FUNCTIONS----------
-   --------------------------
-   */
+    --------------------------
+    ----------EXTERNAL RESTRICTED FUNCTIONS----------
+    --------------------------
+    */
   function triggerTGE() external override onlyOwnerOrFactory {
     if (isTgeTriggered) revert tge_already_triggered();
 
@@ -219,19 +220,19 @@ contract Presale is
   }
 
   /*
-   --------------------------
-   ----------UPGRADE RESTRICTION----------
-   --------------------------
-   */
+    --------------------------
+    ----------UPGRADE RESTRICTION----------
+    --------------------------
+    */
   function _authorizeUpgrade(
     address newImplementation
   ) internal override onlyOwner { }
 
   /*
-   --------------------------
-   ----------VIEW FUNCTIONS----------
-   --------------------------
-   */
+    --------------------------
+    ----------VIEW FUNCTIONS----------
+    --------------------------
+    */
   function calculateReferralAmount(
     uint256 amountInUsdtOrBnb
   ) public pure override returns (uint256 amountToReferral) {
@@ -240,10 +241,10 @@ contract Presale is
   }
 
   /*
-   --------------------------
-   ----------HELPER PRIVATE FUNCTIONS----------
-   --------------------------
-   */
+    --------------------------
+    ----------HELPER PRIVATE FUNCTIONS----------
+    --------------------------
+    */
 
   function _buyLogic(
     address _participant,
@@ -258,7 +259,7 @@ contract Presale is
 
     presaleFactory.updateTotalBought(_participant, valueInUsd);
 
-    uint256 gmgAmount = valueInUsd / presaleInfo.pricePerToken;
+    uint256 gmgAmount = (valueInUsd * 1e18) / presaleInfo.pricePerToken;
 
     uint256 gmgB = gmgBought;
     if (gmgB + gmgAmount > presaleInfo.allocation) {
@@ -272,7 +273,9 @@ contract Presale is
     // stop the presale if bought amount has reached allocation amount
     if (gmgBought == presaleInfo.allocation) isPresaleStarted = false;
 
-    _updateReferral(_referral, asset, msg.value);
+    _updateReferral(
+      _referral, asset, asset == ASSET.BNB ? msg.value : valueInUsd
+    );
     _createVestingWallet(_participant);
 
     Participant storage participant = participantDetails[_participant];
@@ -311,24 +314,23 @@ contract Presale is
     address _participant
   ) private {
     if (address(vestingWallet[_participant]) == address(0)) {
-      IVesting newVestingWallet = IVesting(
-        address(
+      Vesting newVestingWallet = Vesting(
+        payable(
           new ERC1967Proxy(
             address(presaleFactory.vestingImpl()),
             abi.encodeCall(
               IVesting.initialize,
               (
-                tgeTriggeredAt,
+                IPresale(address(this)),
                 presaleInfo.cliffPeriod,
                 _participant,
-                presaleInfo.vestingMonths * 30 days,
+                presaleInfo.vestingMonths,
                 owner()
               )
             )
           )
         )
       );
-
       vestingWallet[_participant] = newVestingWallet;
 
       emit VestingWalletCreated(_participant, newVestingWallet);
