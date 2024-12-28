@@ -312,14 +312,21 @@ contract Presale is
   ) private {
     if (address(vestingWallet[_participant]) == address(0)) {
       IVesting newVestingWallet = IVesting(
-        address(new ERC1967Proxy(address(presaleFactory.vestingImpl()), ""))
-      );
-      newVestingWallet.initialize(
-        tgeTriggeredAt,
-        presaleInfo.cliffPeriod,
-        _participant,
-        presaleInfo.vestingMonths * 30 days,
-        owner()
+        address(
+          new ERC1967Proxy(
+            address(presaleFactory.vestingImpl()),
+            abi.encodeCall(
+              IVesting.initialize,
+              (
+                tgeTriggeredAt,
+                presaleInfo.cliffPeriod,
+                _participant,
+                presaleInfo.vestingMonths * 30 days,
+                owner()
+              )
+            )
+          )
+        )
       );
 
       vestingWallet[_participant] = newVestingWallet;
