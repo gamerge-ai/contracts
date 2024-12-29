@@ -163,7 +163,7 @@ contract Presale is
   ) external override nonReentrant {
     if (asset == ASSET.BNB) {
       individualReferralBnb[msg.sender] = 0;
-      
+
       (bool success,) =
         msg.sender.call{ value: individualReferralBnb[msg.sender] }("");
       if (!success) revert referral_withdrawal_failed();
