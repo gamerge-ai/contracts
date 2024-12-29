@@ -23,8 +23,8 @@ contract PresaleTest is Test {
   address public participant = makeAddr("participant");
   address public referral = makeAddr("referral");
 
-  uint16 public tokenPrice = 1000;
-  uint88 public tokenAllocation = 1_000_000 * 1e18;
+  uint256 public tokenPrice = 1000;
+  uint256 public tokenAllocation = 1_000_000 * 1e18;
   uint64 public cliff = 30 days;
   uint8 public vestingMonths = 12;
   uint8 public tgePercentages = 10;
@@ -253,8 +253,17 @@ contract PresaleTest is Test {
     );
   }
 
-  function test_claimVestingAmount(uint256 usdtAmount) public {
+  function test_claimVestingAmount(
+    uint256 usdtAmount
+  ) public {
     vm.assume(usdtAmount <= 1000 * 1e6 && usdtAmount > 1 * 1e6);
+
+    (uint256 pricePerToken,,,,,) = presale.presaleInfo();
+
+    uint256 gmgAmount = (usdtAmount * 1e18) / pricePerToken;
+    uint256 expectedTgeRelease = (gmgAmount * (10 * 100)) / (10_000);
+    console.log("purchasing gmg amount: ", gmgAmount);
+    console.log("expected tge release: ", expectedTgeRelease);
 
     vm.startPrank(owner);
     presale.startPresale();
@@ -274,26 +283,22 @@ contract PresaleTest is Test {
     vm.startPrank(participant);
     (, uint256 releaseOnTGE,) = presale.participantDetails(participant);
     presale.claimTGE(participant);
-    assertEq(gmg.balanceOf(participant), releaseOnTGE, "TGE release mismatch");
+    assertEq(expectedTgeRelease, releaseOnTGE, "TGE release mismatch");
+
+    vm.expectRevert();
+    presale.claimTGE(participant);
     vm.stopPrank();
     console.log("Tge triggered at: ", presale.tgeTriggeredAt());
-    console.log('block.timestamp: ', block.timestamp);
-
-    // Set TGE trigger time to current block timestamp
-    // uint256 tgeTime = block.timestamp;
-    // presale.setTgeTriggeredAt(tgeTime);
+    console.log("block.timestamp: ", block.timestamp);
 
     // Wait for cliff period plus some vesting duration to ensure tokens are releasable
-    vm.warp(presale.tgeTriggeredAt() + cliff + 30 days); 
+    vm.warp(presale.tgeTriggeredAt() + cliff + 30 days);
     console.log("Tge triggered at: ", presale.tgeTriggeredAt());
-    console.log('block.timestamp: ', block.timestamp);
-
-    // Wait for cliff period plus some vesting duration to ensure tokens are releasable
-    // vm.warp(tgeTime + cliff + 30 days); // Add extra time after cliff
-
+    console.log("block.timestamp: ", block.timestamp);
 
     Vesting vestingWallet = presale.vestingWallet(participant);
     uint256 releasableAmount = vestingWallet.releasable(address(gmg));
+    console.log("releaseable amount: ", releasableAmount);
 
     assertGt(releasableAmount, 0, "No tokens releasable after cliff");
 
@@ -301,13 +306,11 @@ contract PresaleTest is Test {
     vestingWallet.release(address(gmg));
 
     uint256 participantBalance = gmg.balanceOf(participant);
-    uint256 expectedFirstRelease = (usdtAmount * (100 - tgePercentages)) / 1200; // checking releaseable amount for one month
 
     assertEq(
         participantBalance,
-        releaseOnTGE + expectedFirstRelease,
-        "First vesting release mismatch"
+        releaseOnTGE + releasableAmount,
+        "claiming vesting after one month should increase balance"
     );
-}
-
+  }
 }
