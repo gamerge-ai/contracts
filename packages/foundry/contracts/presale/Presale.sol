@@ -161,11 +161,15 @@ contract Presale is
   function claimRefferalAmount(
     ASSET asset
   ) external override nonReentrant {
+    uint256 claimableAmount;
     if (asset == ASSET.BNB) {
-      (bool success,) =
-        msg.sender.call{ value: individualReferralBnb[msg.sender] }("");
+      claimableAmount = individualReferralBnb[msg.sender];
+      individualReferralBnb[msg.sender] = 0;
+      (bool success,) = msg.sender.call{ value: claimableAmount }("");
       if (!success) revert referral_withdrawal_failed();
     } else {
+      claimableAmount = individualReferralUsdt[msg.sender];
+      individualReferralUsdt[msg.sender] = 0;
       _usdt.safeTransfer(msg.sender, individualReferralUsdt[msg.sender]);
     }
   }

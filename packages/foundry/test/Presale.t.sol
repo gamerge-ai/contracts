@@ -6,6 +6,7 @@ import "forge-std/console.sol";
 import "../contracts/presale/Presale.sol";
 import "../contracts/presale/PresaleFactory.sol";
 import "../contracts/presale/Vesting.sol";
+import "../contracts/presale/interfaces/IPresale.sol";
 import "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import "@chainlink/brownie/contracts/src/v0.8/tests/MockV3Aggregator.sol";
 
@@ -179,30 +180,40 @@ contract PresaleTest is Test {
 
   function test_triggerTGE() public {
     vm.startPrank(owner);
-      presale.startPresale();
-      assertEq(presale.isTgeTriggered(), false, "presale TGE already active");
-      assertEq(presale.tgeTriggeredAt(), 0, "presale TGE start time is not zero");
-      presale.triggerTGE();
-      assertTrue(presale.isTgeTriggered());
-      assertGt(presale.tgeTriggeredAt(), 0, "presale TGE start time shouldn't be zero");
-      vm.stopPrank();
+    presale.startPresale();
+    assertEq(presale.isTgeTriggered(), false, "presale TGE already active");
+    assertEq(presale.tgeTriggeredAt(), 0, "presale TGE start time is not zero");
+    presale.triggerTGE();
+    assertTrue(presale.isTgeTriggered());
+    assertGt(
+      presale.tgeTriggeredAt(), 0, "presale TGE start time shouldn't be zero"
+    );
+    vm.stopPrank();
   }
 
-  function testFuzz_claimTGE(uint256 amountInUsd) public {
-      vm.assume(amountInUsd <= 1000 && amountInUsd > 1);
-      vm.startPrank(owner);
-      presale.startPresale();
-      usdt.transfer(participant, amountInUsd);
-      presale.triggerTGE();
-      vm.stopPrank();
+  function testFuzz_claimTGE(
+    uint256 amountInUsd
+  ) public {
+    vm.assume(amountInUsd <= 1000 && amountInUsd > 1);
+    vm.startPrank(owner);
+    presale.startPresale();
+    usdt.transfer(participant, amountInUsd);
+    presale.triggerTGE();
+    vm.stopPrank();
 
-      vm.startPrank(participant);
-      usdt.approve(address(presale), amountInUsd);
-      presale.buyWithUsdt(amountInUsd, referral);
-      (, uint256 releaseOnTGE,  ) = presale.participantDetails(participant);
-      presale.claimTGE(participant);
-      (, uint256 releaseOnTGEAfter,  ) = presale.participantDetails(participant);
-      assertEq(gmg.balanceOf(participant), releaseOnTGE, "balanceOf(participant) and releaseOnTGE mismatch");
-      assertEq(releaseOnTGEAfter, 0, "release on tge should be zero after claiming TGE");
+    vm.startPrank(participant);
+    usdt.approve(address(presale), amountInUsd);
+    presale.buyWithUsdt(amountInUsd, referral);
+    (, uint256 releaseOnTGE,) = presale.participantDetails(participant);
+    presale.claimTGE(participant);
+    (, uint256 releaseOnTGEAfter,) = presale.participantDetails(participant);
+    assertEq(
+      gmg.balanceOf(participant),
+      releaseOnTGE,
+      "balanceOf(participant) and releaseOnTGE mismatch"
+    );
+    assertEq(
+      releaseOnTGEAfter, 0, "release on tge should be zero after claiming TGE"
+    );
   }
 }
