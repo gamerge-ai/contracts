@@ -250,4 +250,62 @@ contract PresaleTest is Test {
       "referral USDT balance mismatch"
     );
   }
+
+  function test_claimVestingAmount(uint256 usdtAmount) public {
+    vm.assume(usdtAmount <= 1000 * 1e6 && usdtAmount > 1 * 1e6);
+
+    vm.startPrank(owner);
+    presale.startPresale();
+    usdt.transfer(participant, usdtAmount);
+    vm.stopPrank();
+
+    vm.startPrank(participant);
+    usdt.approve(address(presale), usdtAmount);
+    presale.buyWithUsdt(usdtAmount, referral);
+    vm.stopPrank();
+
+    vm.startPrank(owner);
+    presale.triggerTGE();
+    console.log("Tge triggered at: ", presale.tgeTriggeredAt());
+    vm.stopPrank();
+
+    vm.startPrank(participant);
+    (, uint256 releaseOnTGE,) = presale.participantDetails(participant);
+    presale.claimTGE(participant);
+    assertEq(gmg.balanceOf(participant), releaseOnTGE, "TGE release mismatch");
+    vm.stopPrank();
+    console.log("Tge triggered at: ", presale.tgeTriggeredAt());
+    console.log('block.timestamp: ', block.timestamp);
+
+    // Set TGE trigger time to current block timestamp
+    // uint256 tgeTime = block.timestamp;
+    // presale.setTgeTriggeredAt(tgeTime);
+
+    // Wait for cliff period plus some vesting duration to ensure tokens are releasable
+    vm.warp(presale.tgeTriggeredAt() + cliff + 30 days); 
+    console.log("Tge triggered at: ", presale.tgeTriggeredAt());
+    console.log('block.timestamp: ', block.timestamp);
+
+    // Wait for cliff period plus some vesting duration to ensure tokens are releasable
+    // vm.warp(tgeTime + cliff + 30 days); // Add extra time after cliff
+
+
+    Vesting vestingWallet = presale.vestingWallet(participant);
+    uint256 releasableAmount = vestingWallet.releasable(address(gmg));
+
+    assertGt(releasableAmount, 0, "No tokens releasable after cliff");
+
+    vm.prank(participant);
+    vestingWallet.release(address(gmg));
+
+    uint256 participantBalance = gmg.balanceOf(participant);
+    uint256 expectedFirstRelease = (usdtAmount * (100 - tgePercentages)) / 1200; // checking releaseable amount for one month
+
+    assertEq(
+        participantBalance,
+        releaseOnTGE + expectedFirstRelease,
+        "First vesting release mismatch"
+    );
+}
+
 }
