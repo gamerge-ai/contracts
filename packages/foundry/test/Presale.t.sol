@@ -216,4 +216,38 @@ contract PresaleTest is Test {
       releaseOnTGEAfter, 0, "release on tge should be zero after claiming TGE"
     );
   }
+
+  function test_claimReferral(uint256 usdtAmount) public {
+    vm.assume(usdtAmount <= 1000 * 1e6 && usdtAmount > 1 * 1e6);
+    vm.startPrank(owner);
+    presale.startPresale();
+    usdt.transfer(participant, usdtAmount);
+    vm.stopPrank();
+
+    vm.startPrank(participant);
+    usdt.approve(address(presale), usdtAmount);
+    presale.buyWithUsdt(usdtAmount, referral);
+    vm.stopPrank();
+
+    vm.startPrank(referral);
+    uint256 usdtReferralAmount = (usdtAmount * 10) / 100;
+    assertEq(
+      presale.individualReferralUsdt(referral),
+      usdtReferralAmount,
+      "referral amount referral USDT balance mismatch"
+    );
+    presale.claimRefferalAmount(IPresale.ASSET.USDT);
+    assertEq(
+      usdt.balanceOf(referral),
+      usdtReferralAmount,
+      "referral USDT balance mismatch"
+    );
+    presale.claimRefferalAmount(IPresale.ASSET.BNB);
+    vm.stopPrank();
+    assertEq(
+      presale.individualReferralUsdt(referral),
+      0,
+      "referral USDT balance mismatch"
+    );
+  }
 }

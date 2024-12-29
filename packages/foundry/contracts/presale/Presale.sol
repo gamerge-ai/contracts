@@ -170,7 +170,7 @@ contract Presale is
     } else {
       claimableAmount = individualReferralUsdt[msg.sender];
       individualReferralUsdt[msg.sender] = 0;
-      _usdt.safeTransfer(msg.sender, individualReferralUsdt[msg.sender]);
+      _usdt.safeTransfer(msg.sender, claimableAmount);
     }
   }
 
