@@ -217,7 +217,9 @@ contract PresaleTest is Test {
     );
   }
 
-  function test_claimReferral(uint256 usdtAmount) public {
+  function test_claimReferral(
+    uint256 usdtAmount
+  ) public {
     vm.assume(usdtAmount <= 1000 * 1e6 && usdtAmount > 1 * 1e6);
     vm.startPrank(owner);
     presale.startPresale();
