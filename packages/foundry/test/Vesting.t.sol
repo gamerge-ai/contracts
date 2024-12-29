@@ -9,7 +9,6 @@ import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 
-
 // Mock Presale contract for testing
 contract MockPresale {
   uint256 private _tgeTriggeredAt;
@@ -151,4 +150,3 @@ contract VestingTest is Test {
     assertEq(vesting.releasable((address(token))), 0);
   }
 }
-
