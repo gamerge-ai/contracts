@@ -275,6 +275,16 @@ contract PresaleTest is Test {
     presale.buyWithUsdt(usdtAmount, referral);
     vm.stopPrank();
 
+    Vesting vestingWallet = presale.vestingWallet(participant);
+
+
+    // vesting wallet should not release anything
+    uint beforeB = gmg.balanceOf(participant);
+    vm.prank(participant);
+    vestingWallet.release(address(gmg));
+    uint afterB = gmg.balanceOf(participant);
+    assertEq(beforeB, afterB, "0 gmg should be withdrawable before tge trigger");
+
     vm.startPrank(owner);
     presale.triggerTGE();
     console.log("Tge triggered at: ", presale.tgeTriggeredAt());
@@ -291,12 +301,18 @@ contract PresaleTest is Test {
     console.log("Tge triggered at: ", presale.tgeTriggeredAt());
     console.log("block.timestamp: ", block.timestamp);
 
+    // vesting wallet should not release anything
+    beforeB = gmg.balanceOf(participant);
+    vm.prank(participant);
+    vestingWallet.release(address(gmg));
+    afterB = gmg.balanceOf(participant);
+    assertEq(beforeB, afterB, "0 gmg should be withdrawable during cliff period");
+
     // Wait for cliff period plus some vesting duration to ensure tokens are releasable
     vm.warp(presale.tgeTriggeredAt() + cliff + 30 days);
     console.log("Tge triggered at: ", presale.tgeTriggeredAt());
     console.log("block.timestamp: ", block.timestamp);
 
-    Vesting vestingWallet = presale.vestingWallet(participant);
     uint256 releasableAmount = vestingWallet.releasable(address(gmg));
     console.log("releaseable amount: ", releasableAmount);
 
