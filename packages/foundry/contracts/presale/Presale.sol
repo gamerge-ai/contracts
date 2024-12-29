@@ -162,15 +162,15 @@ contract Presale is
     ASSET asset
   ) external override nonReentrant {
     if (asset == ASSET.BNB) {
-      individualReferralBnb[msg.sender] = 0;
-
       (bool success,) =
         msg.sender.call{ value: individualReferralBnb[msg.sender] }("");
+
+      individualReferralBnb[msg.sender] = 0;
       if (!success) revert referral_withdrawal_failed();
     } else {
-      individualReferralUsdt[msg.sender] = 0;
-
       _usdt.safeTransfer(msg.sender, individualReferralUsdt[msg.sender]);
+
+      individualReferralUsdt[msg.sender] = 0;
     }
   }
 
