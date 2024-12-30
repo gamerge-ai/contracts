@@ -23,7 +23,7 @@ contract PresaleTest is Test {
   address public participant = makeAddr("participant");
   address public referral = makeAddr("referral");
 
-  uint256 public tokenPrice = 1000;
+  uint256 public tokenPrice = 100000000000000000;
   uint256 public tokenAllocation = 1_000_000 * 1e18;
   uint64 public cliff = 30 days;
   uint8 public vestingMonths = 12;
@@ -54,7 +54,7 @@ contract PresaleTest is Test {
     gmg.mint(owner, 1_000_000_000_000 * 1e18);
     usdt = new ERC20Mock();
     usdt.mint(owner, 1_000_000_000 * 1e18);
-    bnbPriceAggregator = new MockV3Aggregator(18, 1000 * 1e18);
+    bnbPriceAggregator = new MockV3Aggregator(8, 69417247995);
 
     Presale presaleImpl = new Presale();
     Vesting vestingImpl = new Vesting();
@@ -116,7 +116,7 @@ contract PresaleTest is Test {
   ) public {
     vm.assume(bnbAmount > 1 * 1e14 && bnbAmount < 1 * 1e18);
     vm.deal(participant, bnbAmount);
-    uint256 bnbInUsd = 1000 * 1e6;
+    uint256 bnbInUsd = 69417247995 * (10**10);
     uint256 valueInUsd = (bnbInUsd * bnbAmount) / 1e18;
     uint256 expectedGMG = (valueInUsd * 1e18) / (tokenPrice);
 
