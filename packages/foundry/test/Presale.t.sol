@@ -116,7 +116,7 @@ contract PresaleTest is Test {
   ) public {
     vm.assume(bnbAmount > 1 * 1e14 && bnbAmount < 1 * 1e18);
     vm.deal(participant, bnbAmount);
-    uint256 bnbInUsd = 69417247995 * (10**10);
+    uint256 bnbInUsd = 69417247995 * (10 ** 10);
     uint256 valueInUsd = (bnbInUsd * bnbAmount) / 1e18;
     uint256 expectedGMG = (valueInUsd * 1e18) / (tokenPrice);
 
@@ -277,12 +277,11 @@ contract PresaleTest is Test {
 
     Vesting vestingWallet = presale.vestingWallet(participant);
 
-
     // vesting wallet should not release anything
-    uint beforeB = gmg.balanceOf(participant);
+    uint256 beforeB = gmg.balanceOf(participant);
     vm.prank(participant);
     vestingWallet.release(address(gmg));
-    uint afterB = gmg.balanceOf(participant);
+    uint256 afterB = gmg.balanceOf(participant);
     assertEq(beforeB, afterB, "0 gmg should be withdrawable before tge trigger");
 
     vm.startPrank(owner);
@@ -306,7 +305,9 @@ contract PresaleTest is Test {
     vm.prank(participant);
     vestingWallet.release(address(gmg));
     afterB = gmg.balanceOf(participant);
-    assertEq(beforeB, afterB, "0 gmg should be withdrawable during cliff period");
+    assertEq(
+      beforeB, afterB, "0 gmg should be withdrawable during cliff period"
+    );
 
     // Wait for cliff period plus some vesting duration to ensure tokens are releasable
     vm.warp(presale.tgeTriggeredAt() + cliff + 30 days);
@@ -324,9 +325,9 @@ contract PresaleTest is Test {
     uint256 participantBalance = gmg.balanceOf(participant);
 
     assertEq(
-        participantBalance,
-        releaseOnTGE + releasableAmount,
-        "claiming vesting after one month should increase balance"
+      participantBalance,
+      releaseOnTGE + releasableAmount,
+      "claiming vesting after one month should increase balance"
     );
   }
 }

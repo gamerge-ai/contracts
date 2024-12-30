@@ -26,7 +26,7 @@ contract PresaleFactoryTest is Test {
 
     gmg = new ERC20Mock();
     usdt = new ERC20Mock();
-    priceAggregator = new MockV3Aggregator(18, 1000 * 1e18);
+    priceAggregator = new MockV3Aggregator(8, 69417247995);
 
     presaleImpl = new Presale();
     vestingImpl = new Vesting();
@@ -44,7 +44,7 @@ contract PresaleFactoryTest is Test {
   }
 
   function testCreatePresale() public {
-    uint256 tokenPrice = 5e6;
+    uint256 tokenPrice = 0.01 * 1e18;
     uint256 tokenAllocation = 1_000_000 * 1e18;
     uint64 cliff = 180 days;
     uint8 vestingMonths = 12;

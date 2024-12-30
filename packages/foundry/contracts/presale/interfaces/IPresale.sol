@@ -69,6 +69,8 @@ interface IPresale {
   error presale_already_started();
   error presale_already_stopped();
   error total_gmg_sold_out(uint256 gmgLeft);
+  error stale_chainlink_price(uint priceSecondsAgo);
+  error invalid_chainlink_price();
 
   /*
     --------------------------

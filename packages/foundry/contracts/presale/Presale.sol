@@ -13,7 +13,8 @@ import { Ownable2StepUpgradeable } from
 import { ReentrancyGuardUpgradeable } from
   "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { IERC20Metadata } from
+  "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { SafeERC20 } from
   "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -31,7 +32,7 @@ contract Presale is
   using SafeERC20 for IERC20Metadata;
 
   /// @notice Maximum purchase amount per address during presale (in USD)
-  uint256 public MAX_PURCHASE_LIMIT = 0;
+  uint256 public MAX_PURCHASE_LIMIT;
   /// @notice Referral bonus percentage
   uint8 public constant REFERRAL_BONUS = 10; // 10% referral bonus
   /// @notice bps for accurate decimals
@@ -120,22 +121,27 @@ contract Presale is
   function buyWithBnb(
     address referral
   ) public payable override nonReentrant presaleStarted {
+    (, int256 latestPrice,, uint256 updatedAt,) =
+      bnbPriceAggregator.latestRoundData();
+    uint256 timeDiff = block.timestamp - updatedAt;
+    if (timeDiff > 3600) revert stale_chainlink_price(timeDiff);
+    if (latestPrice == 0) revert invalid_chainlink_price();
+
     address participant = msg.sender;
     uint8 aggregatorDecimals = bnbPriceAggregator.decimals();
     uint8 usdtDecimals = _usdt.decimals();
-    uint256 decimalOffset = 0;
-    uint256 bnbInUsd = 0;
-    (, int256 latestPrice,,,) = bnbPriceAggregator.latestRoundData();
-    if(aggregatorDecimals > usdtDecimals){
-        decimalOffset = aggregatorDecimals - usdtDecimals;
-        bnbInUsd = uint256(latestPrice) / (10 ** decimalOffset);
-    }
-    else {
-        decimalOffset = usdtDecimals - aggregatorDecimals;
-        bnbInUsd = uint256(latestPrice) * (10**decimalOffset);
+    uint256 decimalOffset;
+    uint256 bnbInUsd;
+
+    if (aggregatorDecimals > usdtDecimals) {
+      decimalOffset = aggregatorDecimals - usdtDecimals;
+      bnbInUsd = uint256(latestPrice) / (10 ** decimalOffset);
+    } else {
+      decimalOffset = usdtDecimals - aggregatorDecimals;
+      bnbInUsd = uint256(latestPrice) * (10 ** decimalOffset);
     }
 
-    uint256 valueInUsd = (bnbInUsd * msg.value ) / 1e18;
+    uint256 valueInUsd = (bnbInUsd * msg.value) / 1e18;
 
     _buyLogic(participant, referral, valueInUsd, ASSET.BNB);
   }
@@ -147,7 +153,7 @@ contract Presale is
     address participant = msg.sender;
 
     _buyLogic(participant, referral, usdtAmount, ASSET.USDT);
-    
+
     _usdt.safeTransferFrom(participant, address(this), usdtAmount);
   }
 

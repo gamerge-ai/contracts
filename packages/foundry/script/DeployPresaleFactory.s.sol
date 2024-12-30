@@ -15,7 +15,7 @@ contract DeployPresaleFactory is Script {
   address constant BSC_CHAINLINK_BNB_PA =
     0x0567F2323251f0Aab15c8dFb1967E4e8A7D42aeE; // BSC BNB/USD Price Feed
   address constant BSC_USDT = 0x55d398326f99059fF775485246999027B3197955;
-  address constant BSC_GMG = address(111);
+  address constant BSC_GMG = 0xA3CBa8c94b758D56315Def513DEC5E75Ce05041a;
 
   // For testing
   ERC20Mock public mockUSDT;
