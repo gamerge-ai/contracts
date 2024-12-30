@@ -292,7 +292,7 @@ contract Presale is
     participant.releaseOnTGE += releaseOnTGE;
 
     // funding the vesting wallet
-    gmg.transfer(address(vesting), gmgAmount - releaseOnTGE);
+    gmg.safeTransfer(address(vesting), gmgAmount - releaseOnTGE);
 
     if (asset == ASSET.BNB) {
       emit BoughtWithBnb(_participant, msg.value, gmgAmount);
