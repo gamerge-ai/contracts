@@ -8,7 +8,7 @@ import { Vesting } from "../contracts/presale/Vesting.sol";
 import { console2 } from "forge-std/console2.sol";
 import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import "@chainlink/brownie/contracts/src/v0.8/tests/MockV3Aggregator.sol";
-import { Defender } from "openzeppelin-foundry-upgrades/Defender.sol";
+import "forge-std/console.sol";
 
 contract DeployPresaleFactory is Script {
   // Network-specific addresses
@@ -23,17 +23,12 @@ contract DeployPresaleFactory is Script {
   MockV3Aggregator public mockBnbPriceAggregator;
 
   function run() public {
-    uint256 deployerPrivateKey;
     if (block.chainid == 31337) {
-      // Local Anvil network
-      // Use the first test account that Anvil provides
-      deployerPrivateKey =
-        0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
+      vm.startBroadcast();
     } else {
       // For testnet/mainnet, use private key from .env
-      deployerPrivateKey = vm.envUint("HOLESKY_PRIVATE_KEY");
+      vm.startBroadcast( vm.envUint("HOLESKY_PRIVATE_KEY"));
     }
-    vm.startBroadcast(deployerPrivateKey);
 
     // Deploy implementation contracts
     Presale presaleImpl = new Presale();
@@ -43,14 +38,22 @@ contract DeployPresaleFactory is Script {
     (address bnbPa, address usdt, address gmg) = getNetworkAddresses();
 
     // Deploy PresaleFactory
-    PresaleFactory factory =
-      new PresaleFactory(presaleImpl, vestingImpl, bnbPa, gmg, usdt);
+    PresaleFactory factory = new PresaleFactory(presaleImpl, vestingImpl, bnbPa, gmg, usdt);
+    // giving allowance of 19.5 million GMG tokens to the factory
+    ERC20Mock gamerge = ERC20Mock(gmg);
+    bool success = gamerge.approve(address(factory), 19_500_000 * 1e18);
+    require(success, "couldn't approve factory for GMG");
+
+    // create the first presale stage
+    // _tokenPrice, _tokenAllocation, _cliff, _vestingMonths, _tgePercentages, _presaleStage
+    address presale1Address = factory.createPresale(0.01 * 1e18, 1_000_000 * 1e18, 30 days, 36, 20, 1);
 
     vm.stopBroadcast();
 
     // Log deployed addresses
     console2.log("Network:", getNetworkName());
     console2.log("Deployed PresaleFactory at:", address(factory));
+    console2.log("Deployed Presale Stage 1 at:", presale1Address);
     console2.log("Presale Implementation at:", address(presaleImpl));
     console2.log("Vesting Implementation at:", address(vestingImpl));
     console2.log("BNB Price Aggregator at:", bnbPa);
@@ -72,8 +75,8 @@ contract DeployPresaleFactory is Script {
       mockBnbPriceAggregator = new MockV3Aggregator(8, 300 * 1e8); // $300 BNB price with 8 decimals
 
       // Initialize mocks
-      mockUSDT.mint(msg.sender, 1000000 * 1e18); // Mint 1M USDT
-      mockGMG.mint(msg.sender, 1000000 * 1e18); // Mint 1M GMG
+      console.log("minted to msg.sender", msg.sender);
+      mockGMG.mint(msg.sender, 100_000_000 * 1e18); // Mint 100M GMG
 
       return
         (address(mockBnbPriceAggregator), address(mockUSDT), address(mockGMG));
