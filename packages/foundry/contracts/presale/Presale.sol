@@ -162,15 +162,15 @@ contract Presale is
     ASSET asset
   ) external override nonReentrant {
     if (asset == ASSET.BNB) {
-      individualReferralBnb[msg.sender] = 0;
-
       (bool success,) =
         msg.sender.call{ value: individualReferralBnb[msg.sender] }("");
+
+      individualReferralBnb[msg.sender] = 0;
       if (!success) revert referral_withdrawal_failed();
     } else {
-      individualReferralUsdt[msg.sender] = 0;
-
       _usdt.safeTransfer(msg.sender, individualReferralUsdt[msg.sender]);
+
+      individualReferralUsdt[msg.sender] = 0;
     }
   }
 
@@ -280,7 +280,7 @@ contract Presale is
     _updateReferral(
       _referral, asset, asset == ASSET.BNB ? msg.value : valueInUsd
     );
-    _createVestingWallet(_participant);
+    Vesting vesting = _getVestingWallet(_participant);
 
     Participant storage participant = participantDetails[_participant];
     if (!participant.isParticipant) {
@@ -290,6 +290,9 @@ contract Presale is
     uint256 releaseOnTGE =
       (gmgAmount * (presaleInfo.tgePercentage * BPS)) / (100 * BPS);
     participant.releaseOnTGE += releaseOnTGE;
+
+    // funding the vesting wallet
+    gmg.transfer(address(vesting), gmgAmount - releaseOnTGE);
 
     if (asset == ASSET.BNB) {
       emit BoughtWithBnb(_participant, msg.value, gmgAmount);
@@ -314,10 +317,11 @@ contract Presale is
     }
   }
 
-  function _createVestingWallet(
+  function _getVestingWallet(
     address _participant
-  ) private {
-    if (address(vestingWallet[_participant]) == address(0)) {
+  ) private returns (Vesting _vesting) {
+    Vesting vesting = vestingWallet[_participant];
+    if (address(vesting) == address(0)) {
       Vesting newVestingWallet = Vesting(
         payable(
           new ERC1967Proxy(
@@ -336,8 +340,11 @@ contract Presale is
         )
       );
       vestingWallet[_participant] = newVestingWallet;
+      _vesting = newVestingWallet;
 
       emit VestingWalletCreated(_participant, newVestingWallet);
+    } else {
+      _vesting = vesting;
     }
   }
 

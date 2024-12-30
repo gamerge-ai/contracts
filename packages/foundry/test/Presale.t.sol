@@ -23,12 +23,21 @@
 //   address public participant = makeAddr("participant");
 //   address public referral = makeAddr("referral");
 
+<<<<<<< HEAD
 //   uint16 public tokenPrice = 1000;
 //   uint88 public tokenAllocation = 1_000_000 * 1e18;
 //   uint64 public cliff = 30 days;
 //   uint8 public vestingMonths = 12;
 //   uint8 public tgePercentages = 10;
 //   uint8 public presaleStage = 1;
+=======
+  uint256 public tokenPrice = 1000;
+  uint256 public tokenAllocation = 1_000_000 * 1e18;
+  uint64 public cliff = 30 days;
+  uint8 public vestingMonths = 12;
+  uint8 public tgePercentages = 10;
+  uint8 public presaleStage = 1;
+>>>>>>> 3fd05ad912c6eaa9e7fea692c76c3a9eb1cb6186
 
 //   struct Participant {
 //     uint256 totalGMG;
@@ -231,6 +240,7 @@
 //     presale.buyWithUsdt(usdtAmount, referral);
 //     vm.stopPrank();
 
+<<<<<<< HEAD
 //     vm.startPrank(referral);
 //     uint256 usdtReferralAmount = (usdtAmount * 10) / 100;
 //     assertEq(
@@ -253,3 +263,104 @@
 //     );
 //   }
 // }
+=======
+    vm.startPrank(referral);
+    uint256 usdtReferralAmount = (usdtAmount * 10) / 100;
+    assertEq(
+      presale.individualReferralUsdt(referral),
+      usdtReferralAmount,
+      "referral amount referral USDT balance mismatch"
+    );
+    presale.claimRefferalAmount(IPresale.ASSET.USDT);
+    assertEq(
+      usdt.balanceOf(referral),
+      usdtReferralAmount,
+      "referral USDT balance mismatch"
+    );
+    presale.claimRefferalAmount(IPresale.ASSET.BNB);
+    vm.stopPrank();
+    assertEq(
+      presale.individualReferralUsdt(referral),
+      0,
+      "referral USDT balance mismatch"
+    );
+  }
+
+  function test_claimVestingAmount(
+    uint256 usdtAmount
+  ) public {
+    vm.assume(usdtAmount <= 1000 * 1e6 && usdtAmount > 1 * 1e6);
+
+    (uint256 pricePerToken,,,,,) = presale.presaleInfo();
+
+    uint256 gmgAmount = (usdtAmount * 1e18) / pricePerToken;
+    uint256 expectedTgeRelease = (gmgAmount * (10 * 100)) / (10_000);
+    console.log("purchasing gmg amount: ", gmgAmount);
+    console.log("expected tge release: ", expectedTgeRelease);
+
+    vm.startPrank(owner);
+    presale.startPresale();
+    usdt.transfer(participant, usdtAmount);
+    vm.stopPrank();
+
+    vm.startPrank(participant);
+    usdt.approve(address(presale), usdtAmount);
+    presale.buyWithUsdt(usdtAmount, referral);
+    vm.stopPrank();
+
+    Vesting vestingWallet = presale.vestingWallet(participant);
+
+
+    // vesting wallet should not release anything
+    uint beforeB = gmg.balanceOf(participant);
+    vm.prank(participant);
+    vestingWallet.release(address(gmg));
+    uint afterB = gmg.balanceOf(participant);
+    assertEq(beforeB, afterB, "0 gmg should be withdrawable before tge trigger");
+
+    vm.startPrank(owner);
+    presale.triggerTGE();
+    console.log("Tge triggered at: ", presale.tgeTriggeredAt());
+    vm.stopPrank();
+
+    vm.startPrank(participant);
+    (, uint256 releaseOnTGE,) = presale.participantDetails(participant);
+    presale.claimTGE(participant);
+    assertEq(expectedTgeRelease, releaseOnTGE, "TGE release mismatch");
+
+    vm.expectRevert();
+    presale.claimTGE(participant);
+    vm.stopPrank();
+    console.log("Tge triggered at: ", presale.tgeTriggeredAt());
+    console.log("block.timestamp: ", block.timestamp);
+
+    // vesting wallet should not release anything
+    beforeB = gmg.balanceOf(participant);
+    vm.prank(participant);
+    vestingWallet.release(address(gmg));
+    afterB = gmg.balanceOf(participant);
+    assertEq(beforeB, afterB, "0 gmg should be withdrawable during cliff period");
+
+    // Wait for cliff period plus some vesting duration to ensure tokens are releasable
+    vm.warp(presale.tgeTriggeredAt() + cliff + 30 days);
+    console.log("Tge triggered at: ", presale.tgeTriggeredAt());
+    console.log("block.timestamp: ", block.timestamp);
+
+    uint256 releasableAmount = vestingWallet.releasable(address(gmg));
+    console.log("releaseable amount: ", releasableAmount);
+
+    assertGt(releasableAmount, 0, "No tokens releasable after cliff");
+
+    vm.prank(participant);
+    vestingWallet.release(address(gmg));
+
+    uint256 participantBalance = gmg.balanceOf(participant);
+
+    assertEq(
+        participantBalance,
+        releaseOnTGE + releasableAmount,
+        "claiming vesting after one month should increase balance"
+    );
+  }
+}
+>>>>>>> 3fd05ad912c6eaa9e7fea692c76c3a9eb1cb6186
