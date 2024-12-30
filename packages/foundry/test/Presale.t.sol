@@ -23,7 +23,7 @@ contract PresaleTest is Test {
   address public participant = makeAddr("participant");
   address public referral = makeAddr("referral");
 
-  uint256 public tokenPrice = 100000000000000000;
+  uint256 public tokenPrice = 0.3 * 1e18;
   uint256 public tokenAllocation = 1_000_000 * 1e18;
   uint64 public cliff = 30 days;
   uint8 public vestingMonths = 12;
@@ -194,7 +194,7 @@ contract PresaleTest is Test {
   function testFuzz_claimTGE(
     uint256 amountInUsd
   ) public {
-    vm.assume(amountInUsd <= 1000 && amountInUsd > 1);
+    vm.assume(amountInUsd <= 1000e18 && amountInUsd > 1e18);
     vm.startPrank(owner);
     presale.startPresale();
     usdt.transfer(participant, amountInUsd);
