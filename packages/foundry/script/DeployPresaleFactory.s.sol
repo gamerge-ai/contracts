@@ -41,7 +41,7 @@ contract DeployPresaleFactory is Script {
     PresaleFactory factory = new PresaleFactory(presaleImpl, vestingImpl, bnbPa, gmg, usdt);
     // giving allowance of 19.5 million GMG tokens to the factory
     ERC20Mock gamerge = ERC20Mock(gmg);
-    bool success = gamerge.approve(address(factory), 19_500_000 * 1e18);
+    bool success = gamerge.approve(address(factory), 21_500_000 * 1e18);
     require(success, "couldn't approve factory for GMG");
 
     // create the first presale stage
