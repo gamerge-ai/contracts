@@ -6,6 +6,13 @@ solc = "0.8.28"
 fs_permissions = [{ access = "read-write", path = "./"}]
 optimizer = true
 optimizer_runs = 10_000
+via_ir = true
+ignored_error_codes = ["unreachable"]
+
+ffi = true
+ast = true
+build_info = true
+extra_output = ["storageLayout"]
 
 [rpc_endpoints]
 default_network = "http://127.0.0.1:8545"
