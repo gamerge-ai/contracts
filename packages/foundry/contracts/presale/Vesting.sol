@@ -10,8 +10,8 @@ import { VestingWalletUpgradeable } from
 import "./interfaces/IVesting.sol";
 import "./interfaces/IPresale.sol";
 
-contract Vesting is IVesting, VestingWalletUpgradeable, UUPSUpgradeable {
-  address private _owner;
+contract Vesting is IVesting, VestingWalletUpgradeable, UUPSUpgradeable, OwnableUpgradeable {
+  // address private _owner;  ----- removing this variable
   IPresale private _presale;
   uint64 private _cliffPeriod;
 
@@ -27,11 +27,11 @@ contract Vesting is IVesting, VestingWalletUpgradeable, UUPSUpgradeable {
     uint256 _months,
     address owner_
   ) external override initializer {
-    __Ownable_init(_beneficiary);
+    __Ownable_init(owner_);
     // passing 0 as the `startTimestamp` as its not going to be used in the vesting logic
     __VestingWallet_init_unchained(_beneficiary, 0, uint64(_months * 30 days));
 
-    _owner = owner_;
+    // _owner = owner_;
     _presale = presale;
     _cliffPeriod = cliffPeriod_;
   }
@@ -85,6 +85,6 @@ contract Vesting is IVesting, VestingWalletUpgradeable, UUPSUpgradeable {
   function _authorizeUpgrade(
     address
   ) internal view override {
-    require(msg.sender == _owner, "upgrade unauthorized");
+    require(msg.sender == owner(), "upgrade unauthorized");
   }
 }
