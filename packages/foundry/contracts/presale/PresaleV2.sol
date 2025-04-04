@@ -60,6 +60,10 @@ contract PresaleV2 is
 
     bool public isPresaleStarted;
 
+    /// @notice Total referral rewards reserved for affiliates
+    uint256 public totalReferralBnb;
+    uint256 public totalReferralUsdt;
+
     modifier afterTgeTrigger() {
         if (!isTgeTriggered) revert tge_not_triggered();
         _;
@@ -209,10 +213,14 @@ contract PresaleV2 is
         uint256 amount
     ) external override onlyOwner nonReentrant {
         if (asset == ASSET.BNB) {
+            uint256 availableBnb = address(this).balance - totalReferralBnb; // Exclude reserved BNB
+            require(availableBnb >= amount, "insufficient BNB"); 
             (bool success, ) = to.call{value: amount}("");
             require(success, "recovery failed");
             emit BnbRecoverySuccessful(to, amount);
         } else if (asset == ASSET.USDT) {
+            uint256 availableUsdt = _usdt.balanceOf(address(this)) - totalReferralUsdt; // Exclude reserved USDT
+            require(availableUsdt >= amount, "Insufficient USDT");
             _usdt.safeTransfer(to, amount);
             emit RecoverySuccessful(_usdt, to, amount);
         } else {
@@ -328,8 +336,10 @@ contract PresaleV2 is
 
             if (asset == ASSET.BNB) {
                 individualReferralBnb[referral] += amountToReferral;
+                totalReferralBnb += amountToReferral;
             } else {
                 individualReferralUsdt[referral] += amountToReferral;
+                totalReferralUsdt += amountToReferral;
             }
         }
     }
