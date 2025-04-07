@@ -180,6 +180,7 @@ contract PresaleV2 is
         uint256 referralAmount;
         if (asset == ASSET.BNB) {
             referralAmount = individualReferralBnb[msg.sender];
+            totalReferralBnb -= referralAmount;
             individualReferralBnb[msg.sender] = 0;
 
             (bool success, ) = msg.sender.call{value: referralAmount}("");
@@ -187,6 +188,7 @@ contract PresaleV2 is
 
         } else {
             referralAmount = individualReferralUsdt[msg.sender];
+            totalReferralUsdt -= referralAmount;
             individualReferralUsdt[msg.sender] = 0;
             _usdt.safeTransfer(msg.sender, referralAmount);
         }
