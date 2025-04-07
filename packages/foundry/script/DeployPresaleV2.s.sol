@@ -38,7 +38,7 @@ contract DeployPresaleFactory is Script {
     // Vesting vestingImpl = new Vesting();
     PresaleV2 presaleV2Impl = new PresaleV2();
 
-    presaleFactory factory = PresaleFactory(presaleFactoryAddress);
+    PresaleFactory factory = PresaleFactory(presaleFactoryAddress);
 
     factory.updatePresaleImpl(address(presaleV2Impl));
 
