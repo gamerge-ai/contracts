@@ -81,7 +81,7 @@ contract Vesting is IVesting, VestingWalletUpgradeable, UUPSUpgradeable {
     This can be used to disable the owner functionality by setting the owner to a zero address.
     This might be desirable in case when the upgrade feature is no longer needed.
     */
-    function updateOwner(address newOwner) {
+    function updateOwner(address newOwner) public {
       _owner = newOwner;
     }
 
