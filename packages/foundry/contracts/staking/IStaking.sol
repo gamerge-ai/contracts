@@ -17,7 +17,7 @@ interface IStaking {
         uint256 stakedAt;         // Timestamp when staked
         uint256 maturityTime;     // Timestamp when stake matures
         StakingPeriod period;     // Staking period chosen
-        uint256 expectedRewards;  // Total expected rewards at maturity
+        uint256 withdrawnRewards; // Total rewards withdrawn so far
         bool isActive;            // Whether stake is still active
     }
 
@@ -37,6 +37,8 @@ interface IStaking {
     error StakeNotFound();
     error StakeAlreadyWithdrawn();
     error StakeNotMatured();
+    error CanOnlyUnstakeWithPenalty();
+    error InsufficientRewardsBalance();
     error InsufficientContractBalance();
     error TransferFailed();
     error NotStakeOwner();
@@ -59,20 +61,21 @@ interface IStaking {
         uint256 expectedRewards
     );
     
-    event WithdrawnAtMaturity(
+    event Unstaked(
         address indexed user,
         uint256 indexed stakeId,
         uint256 principal,
         uint256 rewards,
-        uint256 totalWithdrawn
+        uint256 penalty,
+        uint256 totalWithdrawn,
+        bool isEarlyUnstake
     );
     
-    event EarlyWithdrawal(
+    event RewardsWithdrawn(
         address indexed user,
         uint256 indexed stakeId,
-        uint256 principal,
-        uint256 penalty,
-        uint256 netWithdrawn
+        uint256 rewardsAmount,
+        uint256 totalRewardsWithdrawn
     );
     
     event EmergencyWithdrawal(
@@ -94,9 +97,9 @@ interface IStaking {
     // EXTERNAL STAKING FUNCTIONS
     function stake(uint256 amount, StakingPeriod period) external;
     
-    function withdrawAtMaturity(uint256 stakeId) external;
+    function unstake(uint256 stakeId) external;
     
-    function withdrawEarly(uint256 stakeId) external;
+    function withdraw(uint256 stakeId, uint256 rewardsAmount) external;
 
     // EXTERNAL RESTRICTED FUNCTIONS  
     function pause() external;
@@ -111,6 +114,10 @@ interface IStaking {
     function getStakeInfo(address user, uint256 stakeId) external view returns (StakeInfo memory);
     
     function calculateRewards(uint256 amount, StakingPeriod period) external pure returns (uint256);
+    
+    function calculateRewardsForDuration(uint256 amount, StakingPeriod period, uint256 actualDuration) external pure returns (uint256);
+    
+    function getAvailableRewards(address user, uint256 stakeId) external view returns (uint256);
     
     function calculateEarlyWithdrawalPenalty(uint256 amount) external pure returns (uint256);
     

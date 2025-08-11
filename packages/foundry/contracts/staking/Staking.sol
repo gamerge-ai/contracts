@@ -78,14 +78,13 @@ contract Staking is
 
         uint256 duration = getStakingPeriodDuration(period);
         uint256 maturityTime = block.timestamp + duration;
-        uint256 expectedRewards = calculateRewards(amount, period);
 
         StakeInfo memory newStake = StakeInfo({
             amount: amount,
             stakedAt: block.timestamp,
             maturityTime: maturityTime,
             period: period,
-            expectedRewards: expectedRewards,
+            withdrawnRewards: 0,
             isActive: true
         });
 
@@ -101,20 +100,35 @@ contract Staking is
             amount,
             period,
             maturityTime,
-            expectedRewards
+            calculateRewards(amount, period)
         );
     }
 
-    function withdrawAtMaturity(
+    function unstake(
         uint256 stakeId
     ) external override nonReentrant validStakeId(msg.sender, stakeId) onlyStakeOwner(msg.sender, stakeId) {
         StakeInfo storage stakeInfo = userStakes[msg.sender][stakeId];
         
-        if (block.timestamp < stakeInfo.maturityTime) revert StakeNotMatured();
-
         uint256 principal = stakeInfo.amount;
-        uint256 rewards = stakeInfo.expectedRewards;
-        uint256 totalWithdrawal = principal + rewards;
+        uint256 actualDuration = block.timestamp - stakeInfo.stakedAt;
+        uint256 plannedDuration = stakeInfo.maturityTime - stakeInfo.stakedAt;
+        
+        uint256 rewards;
+        uint256 penalty = 0;
+        uint256 totalWithdrawal;
+        bool isEarlyUnstake = false;
+
+        if (actualDuration >= plannedDuration) {
+            // Matured stake - calculate full rewards for actual duration
+            rewards = calculateRewardsForDuration(principal, stakeInfo.period, actualDuration);
+            totalWithdrawal = principal + rewards;
+        } else {
+            // Early unstake - deduct penalty from principal, no rewards
+            isEarlyUnstake = true;
+            penalty = calculateEarlyWithdrawalPenalty(principal);
+            totalWithdrawal = principal - penalty;
+            rewards = 0;
+        }
 
         if (gmgToken.balanceOf(address(this)) < totalWithdrawal) {
             revert InsufficientContractBalance();
@@ -125,28 +139,37 @@ contract Staking is
 
         gmgToken.safeTransfer(msg.sender, totalWithdrawal);
 
-        emit WithdrawnAtMaturity(msg.sender, stakeId, principal, rewards, totalWithdrawal);
+        emit Unstaked(msg.sender, stakeId, principal, rewards, penalty, totalWithdrawal, isEarlyUnstake);
     }
 
-    function withdrawEarly(
-        uint256 stakeId
+    function withdraw(
+        uint256 stakeId,
+        uint256 rewardsAmount
     ) external override nonReentrant validStakeId(msg.sender, stakeId) onlyStakeOwner(msg.sender, stakeId) {
         StakeInfo storage stakeInfo = userStakes[msg.sender][stakeId];
         
-        uint256 principal = stakeInfo.amount;
-        uint256 penalty = calculateEarlyWithdrawalPenalty(principal);
-        uint256 netWithdrawal = principal - penalty;
+        uint256 actualDuration = block.timestamp - stakeInfo.stakedAt;
+        uint256 plannedDuration = stakeInfo.maturityTime - stakeInfo.stakedAt;
+        
+        if (actualDuration < plannedDuration) {
+            revert CanOnlyUnstakeWithPenalty();
+        }
 
-        if (gmgToken.balanceOf(address(this)) < netWithdrawal) {
+        uint256 availableRewards = getAvailableRewards(msg.sender, stakeId);
+        
+        if (rewardsAmount > availableRewards) {
+            revert InsufficientRewardsBalance();
+        }
+
+        if (gmgToken.balanceOf(address(this)) < rewardsAmount) {
             revert InsufficientContractBalance();
         }
 
-        stakeInfo.isActive = false;
-        totalStaked -= principal;
+        stakeInfo.withdrawnRewards += rewardsAmount;
 
-        gmgToken.safeTransfer(msg.sender, netWithdrawal);
+        gmgToken.safeTransfer(msg.sender, rewardsAmount);
 
-        emit EarlyWithdrawal(msg.sender, stakeId, principal, penalty, netWithdrawal);
+        emit RewardsWithdrawn(msg.sender, stakeId, rewardsAmount, stakeInfo.withdrawnRewards);
     }
 
 
@@ -227,6 +250,44 @@ contract Staking is
         uint256 amount
     ) public pure override returns (uint256) {
         return (amount * EARLY_WITHDRAWAL_PENALTY) / PRECISION;
+    }
+
+    function calculateRewardsForDuration(
+        uint256 amount,
+        StakingPeriod period,
+        uint256 actualDuration
+    ) public pure override returns (uint256) {
+        uint256 apy;
+
+        if (period == StakingPeriod.THREE_MONTHS) {
+            apy = THREE_MONTH_APY;
+        } else if (period == StakingPeriod.SIX_MONTHS) {
+            apy = SIX_MONTH_APY;
+        } else if (period == StakingPeriod.NINE_MONTHS) {
+            apy = NINE_MONTH_APY;
+        } else if (period == StakingPeriod.TWELVE_MONTHS) {
+            apy = TWELVE_MONTH_APY;
+        } else {
+            revert InvalidStakingPeriod();
+        }
+
+        // Convert actual duration from seconds to years for APY calculation
+        // actualDuration / (365 days)
+        return (amount * apy * actualDuration) / (PRECISION * 365 days);
+    }
+
+    function getAvailableRewards(
+        address user,
+        uint256 stakeId
+    ) public view override returns (uint256) {
+        if (stakeId >= userStakes[user].length) revert StakeNotFound();
+        if (!userStakes[user][stakeId].isActive) return 0;
+        
+        StakeInfo storage stakeInfo = userStakes[user][stakeId];
+        uint256 actualDuration = block.timestamp - stakeInfo.stakedAt;
+        
+        uint256 totalRewards = calculateRewardsForDuration(stakeInfo.amount, stakeInfo.period, actualDuration);
+        return totalRewards - stakeInfo.withdrawnRewards;
     }
 
     function getStakingPeriodDuration(
