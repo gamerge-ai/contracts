@@ -111,35 +111,31 @@ contract Staking is
         
         uint256 principal = stakeInfo.amount;
         uint256 actualDuration = block.timestamp - stakeInfo.stakedAt;
-        uint256 plannedDuration = stakeInfo.maturityTime - stakeInfo.stakedAt;
         
-        uint256 rewards;
-        uint256 penalty = 0;
+
         uint256 totalWithdrawal;
         bool isEarlyUnstake = false;
 
-        if (actualDuration >= plannedDuration) {
-            // Matured stake - calculate full rewards for actual duration
-            rewards = calculateRewardsForDuration(principal, stakeInfo.period, actualDuration);
-            totalWithdrawal = principal + rewards;
+        if (block.timestamp >= stakeInfo.maturityTime) {
+
+            totalWithdrawal = principal + calculateRewardsForDuration(principal, stakeInfo.period, actualDuration);
         } else {
-            // Early unstake - deduct penalty from principal, no rewards
+
             isEarlyUnstake = true;
-            penalty = calculateEarlyWithdrawalPenalty(principal);
-            totalWithdrawal = principal - penalty;
-            rewards = 0;
+            totalWithdrawal = principal - calculateEarlyWithdrawalPenalty(principal);
         }
 
         if (gmgToken.balanceOf(address(this)) < totalWithdrawal) {
             revert InsufficientContractBalance();
         }
 
+        stakeInfo.withdrawnRewards = totalWithdrawal;
         stakeInfo.isActive = false;
         totalStaked -= principal;
 
         gmgToken.safeTransfer(msg.sender, totalWithdrawal);
 
-        emit Unstaked(msg.sender, stakeId, principal, rewards, penalty, totalWithdrawal, isEarlyUnstake);
+        emit Unstaked(msg.sender, stakeId, principal, totalWithdrawal, isEarlyUnstake);
     }
 
     function withdraw(
@@ -147,14 +143,11 @@ contract Staking is
         uint256 rewardsAmount
     ) external override nonReentrant validStakeId(msg.sender, stakeId) onlyStakeOwner(msg.sender, stakeId) {
         StakeInfo storage stakeInfo = userStakes[msg.sender][stakeId];
-        
-        uint256 actualDuration = block.timestamp - stakeInfo.stakedAt;
-        uint256 plannedDuration = stakeInfo.maturityTime - stakeInfo.stakedAt;
-        
-        if (actualDuration < plannedDuration) {
-            revert CanOnlyUnstakeWithPenalty();
-        }
 
+        if(block.timestamp < stakeInfo.maturityTime) {
+            revert CanOnlyUnstakeWithPenalty();
+        }   
+        
         uint256 availableRewards = getAvailableRewards(msg.sender, stakeId);
         
         if (rewardsAmount > availableRewards) {
@@ -181,12 +174,12 @@ contract Staking is
 
     function pause() external override onlyOwner {
         _pause();
-        emit ContractPaused(true);
+        emit StakingContractPaused(true);
     }
 
     function unpause() external override onlyOwner {
         _unpause();
-        emit ContractPaused(false);
+        emit StakingContractPaused(false);
     }
 
     function emergencyWithdraw(

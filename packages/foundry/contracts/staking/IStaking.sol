@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity 0.8.30;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -65,8 +65,6 @@ interface IStaking {
         address indexed user,
         uint256 indexed stakeId,
         uint256 principal,
-        uint256 rewards,
-        uint256 penalty,
         uint256 totalWithdrawn,
         bool isEarlyUnstake
     );
@@ -84,7 +82,7 @@ interface IStaking {
         uint256 amount
     );
 
-    event ContractPaused(bool paused);
+    event StakingContractPaused(bool paused);
 
     /*
     --------------------------
