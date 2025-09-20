@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity 0.8.30;
 
 import { IStaking } from "./IStaking.sol";
 import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -31,7 +31,6 @@ contract Staking is
     uint256 public totalStaked;
     
     mapping(address => StakeInfo[]) public userStakes;
-    mapping(address => uint256) public userStakeCount;
 
     modifier validStakeId(address user, uint256 stakeId) {
         if (stakeId >= userStakes[user].length) revert StakeNotFound();
@@ -89,7 +88,6 @@ contract Staking is
         });
 
         userStakes[msg.sender].push(newStake);
-        userStakeCount[msg.sender]++;
         totalStaked += amount;
 
         gmgToken.safeTransferFrom(msg.sender, address(this), amount);
@@ -99,8 +97,7 @@ contract Staking is
             userStakes[msg.sender].length - 1,
             amount,
             period,
-            maturityTime,
-            calculateRewards(amount, period)
+            maturityTime
         );
     }
 
@@ -110,17 +107,14 @@ contract Staking is
         StakeInfo storage stakeInfo = userStakes[msg.sender][stakeId];
         
         uint256 principal = stakeInfo.amount;
-        uint256 actualDuration = block.timestamp - stakeInfo.stakedAt;
-        
-
         uint256 totalWithdrawal;
+        uint256 rewards = 0;
         bool isEarlyUnstake = false;
 
         if (block.timestamp >= stakeInfo.maturityTime) {
-
-            totalWithdrawal = principal + calculateRewardsForDuration(principal, stakeInfo.period, actualDuration);
+            rewards = getAvailableRewards(msg.sender, stakeId);
+            totalWithdrawal = principal + rewards;
         } else {
-
             isEarlyUnstake = true;
             totalWithdrawal = principal - calculateEarlyWithdrawalPenalty(principal);
         }
@@ -129,7 +123,7 @@ contract Staking is
             revert InsufficientContractBalance();
         }
 
-        stakeInfo.withdrawnRewards = totalWithdrawal;
+        stakeInfo.withdrawnRewards += rewards;
         stakeInfo.isActive = false;
         totalStaked -= principal;
 
@@ -138,32 +132,32 @@ contract Staking is
         emit Unstaked(msg.sender, stakeId, principal, totalWithdrawal, isEarlyUnstake);
     }
 
-    function withdraw(
-        uint256 stakeId,
-        uint256 rewardsAmount
-    ) external override nonReentrant validStakeId(msg.sender, stakeId) onlyStakeOwner(msg.sender, stakeId) {
-        StakeInfo storage stakeInfo = userStakes[msg.sender][stakeId];
+    // function withdraw(
+    //     uint256 stakeId,
+    //     uint256 rewardsAmount
+    // ) external override nonReentrant validStakeId(msg.sender, stakeId) onlyStakeOwner(msg.sender, stakeId) {
+    //     StakeInfo storage stakeInfo = userStakes[msg.sender][stakeId];
 
-        if(block.timestamp < stakeInfo.maturityTime) {
-            revert CanOnlyUnstakeWithPenalty();
-        }   
+    //     if(block.timestamp < stakeInfo.maturityTime) {
+    //         revert CanOnlyUnstakeWithPenalty();
+    //     }   
         
-        uint256 availableRewards = getAvailableRewards(msg.sender, stakeId);
+    //     uint256 availableRewards = getAvailableRewards(msg.sender, stakeId);
         
-        if (rewardsAmount > availableRewards) {
-            revert InsufficientRewardsBalance();
-        }
+    //     if (rewardsAmount > availableRewards) {
+    //         revert InsufficientRewardsBalance();
+    //     }
 
-        if (gmgToken.balanceOf(address(this)) < rewardsAmount) {
-            revert InsufficientContractBalance();
-        }
+    //     if (gmgToken.balanceOf(address(this)) < rewardsAmount) {
+    //         revert InsufficientContractBalance();
+    //     }
 
-        stakeInfo.withdrawnRewards += rewardsAmount;
+    //     stakeInfo.withdrawnRewards += rewardsAmount;
 
-        gmgToken.safeTransfer(msg.sender, rewardsAmount);
+    //     gmgToken.safeTransfer(msg.sender, rewardsAmount);
 
-        emit RewardsWithdrawn(msg.sender, stakeId, rewardsAmount, stakeInfo.withdrawnRewards);
-    }
+    //     emit RewardsWithdrawn(msg.sender, stakeId, rewardsAmount, stakeInfo.withdrawnRewards);
+    // }
 
 
     /*
@@ -213,60 +207,10 @@ contract Staking is
         return userStakes[user][stakeId];
     }
 
-    function calculateRewards(
-        uint256 amount,
-        StakingPeriod period
-    ) public pure override returns (uint256) {
-        uint256 apy;
-        uint256 months;
-
-        if (period == StakingPeriod.THREE_MONTHS) {
-            apy = THREE_MONTH_APY;
-            months = 3;
-        } else if (period == StakingPeriod.SIX_MONTHS) {
-            apy = SIX_MONTH_APY;
-            months = 6;
-        } else if (period == StakingPeriod.NINE_MONTHS) {
-            apy = NINE_MONTH_APY;
-            months = 9;
-        } else if (period == StakingPeriod.TWELVE_MONTHS) {
-            apy = TWELVE_MONTH_APY;
-            months = 12;
-        } else {
-            revert InvalidStakingPeriod();
-        }
-
-        return (amount * apy * months) / (PRECISION * 12);
-    }
-
     function calculateEarlyWithdrawalPenalty(
         uint256 amount
     ) public pure override returns (uint256) {
         return (amount * EARLY_WITHDRAWAL_PENALTY) / PRECISION;
-    }
-
-    function calculateRewardsForDuration(
-        uint256 amount,
-        StakingPeriod period,
-        uint256 actualDuration
-    ) public pure override returns (uint256) {
-        uint256 apy;
-
-        if (period == StakingPeriod.THREE_MONTHS) {
-            apy = THREE_MONTH_APY;
-        } else if (period == StakingPeriod.SIX_MONTHS) {
-            apy = SIX_MONTH_APY;
-        } else if (period == StakingPeriod.NINE_MONTHS) {
-            apy = NINE_MONTH_APY;
-        } else if (period == StakingPeriod.TWELVE_MONTHS) {
-            apy = TWELVE_MONTH_APY;
-        } else {
-            revert InvalidStakingPeriod();
-        }
-
-        // Convert actual duration from seconds to years for APY calculation
-        // actualDuration / (365 days)
-        return (amount * apy * actualDuration) / (PRECISION * 365 days);
     }
 
     function getAvailableRewards(
@@ -277,9 +221,23 @@ contract Staking is
         if (!userStakes[user][stakeId].isActive) return 0;
         
         StakeInfo storage stakeInfo = userStakes[user][stakeId];
+
+        uint256 apy;
         uint256 actualDuration = block.timestamp - stakeInfo.stakedAt;
         
-        uint256 totalRewards = calculateRewardsForDuration(stakeInfo.amount, stakeInfo.period, actualDuration);
+        if (stakeInfo.period == StakingPeriod.THREE_MONTHS) {
+            apy = THREE_MONTH_APY;
+        } else if (stakeInfo.period == StakingPeriod.SIX_MONTHS) {
+            apy = SIX_MONTH_APY;
+        } else if (stakeInfo.period == StakingPeriod.NINE_MONTHS) {
+            apy = NINE_MONTH_APY;
+        } else if (stakeInfo.period == StakingPeriod.TWELVE_MONTHS) {
+            apy = TWELVE_MONTH_APY;
+        } else {
+            revert InvalidStakingPeriod();
+        }
+        
+        uint256 totalRewards = (stakeInfo.amount * apy * actualDuration) / (PRECISION * 365 days);
         return totalRewards - stakeInfo.withdrawnRewards;
     }
 
@@ -300,7 +258,7 @@ contract Staking is
     }
 
     function getUserStakeCount(address user) external view override returns (uint256) {
-        return userStakeCount[user];
+        return userStakes[user].length;
     }
 
     function isPaused() external view override returns (bool) {

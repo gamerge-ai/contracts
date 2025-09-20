@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity 0.8.30;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -56,8 +56,7 @@ interface IStaking {
         uint256 indexed stakeId,
         uint256 amount,
         StakingPeriod period,
-        uint256 maturityTime,
-        uint256 expectedRewards
+        uint256 maturityTime
     );
     
     event Unstaked(
@@ -110,9 +109,8 @@ interface IStaking {
     
     function getStakeInfo(address user, uint256 stakeId) external view returns (StakeInfo memory);
     
-    function calculateRewards(uint256 amount, StakingPeriod period) external pure returns (uint256);
     
-    function calculateRewardsForDuration(uint256 amount, StakingPeriod period, uint256 actualDuration) external pure returns (uint256);
+    // function calculateRewardsForDuration(uint256 amount, StakingPeriod period, uint256 actualDuration) external pure returns (uint256);
     
     function getAvailableRewards(address user, uint256 stakeId) external view returns (uint256);
     
