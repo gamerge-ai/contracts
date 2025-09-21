@@ -132,34 +132,6 @@ contract Staking is
         emit Unstaked(msg.sender, stakeId, principal, totalWithdrawal, isEarlyUnstake);
     }
 
-    // function withdraw(
-    //     uint256 stakeId,
-    //     uint256 rewardsAmount
-    // ) external override nonReentrant validStakeId(msg.sender, stakeId) onlyStakeOwner(msg.sender, stakeId) {
-    //     StakeInfo storage stakeInfo = userStakes[msg.sender][stakeId];
-
-    //     if(block.timestamp < stakeInfo.maturityTime) {
-    //         revert CanOnlyUnstakeWithPenalty();
-    //     }   
-        
-    //     uint256 availableRewards = getAvailableRewards(msg.sender, stakeId);
-        
-    //     if (rewardsAmount > availableRewards) {
-    //         revert InsufficientRewardsBalance();
-    //     }
-
-    //     if (gmgToken.balanceOf(address(this)) < rewardsAmount) {
-    //         revert InsufficientContractBalance();
-    //     }
-
-    //     stakeInfo.withdrawnRewards += rewardsAmount;
-
-    //     gmgToken.safeTransfer(msg.sender, rewardsAmount);
-
-    //     emit RewardsWithdrawn(msg.sender, stakeId, rewardsAmount, stakeInfo.withdrawnRewards);
-    // }
-
-
     /*
     --------------------------
     ----------EXTERNAL RESTRICTED FUNCTIONS----------

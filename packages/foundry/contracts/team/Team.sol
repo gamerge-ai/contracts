@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -45,7 +45,7 @@ contract TeamContract is Ownable2Step, ReentrancyGuard, Pausable {
     error InvalidParams();
     error NoClaimable();
 
-    constructor(address _gmgToken) Ownable2Step(msg.sender){
+    constructor(address _gmgToken, address initialOwner) Ownable(initialOwner) {
         if (_gmgToken == address(0)) revert InvalidAddress();
         gmgToken = IERC20(_gmgToken);
     }
@@ -58,7 +58,7 @@ contract TeamContract is Ownable2Step, ReentrancyGuard, Pausable {
         uint256 _allocation,
         uint256 _cliffMonths,
         uint256 _vestingMonths
-    ) external onlyOwner whenNotPaused {
+    ) public onlyOwner whenNotPaused {
         if (_member == address(0)) revert InvalidAddress();
         if (_allocation == 0 || _vestingMonths == 0) revert InvalidParams();
         if (exists[_member]) revert AlreadyExists();
@@ -89,7 +89,7 @@ contract TeamContract is Ownable2Step, ReentrancyGuard, Pausable {
     }
 
     /// @notice Recover any ERC20 sent to this contract (e.g. wrong token)
-    function recoverERC20(address token, uint256 amount) external onlyOwner nonReentrant {
+    function recoverERC20(address token, uint256 amount) public onlyOwner nonReentrant {
         if (token == address(0)) revert InvalidAddress();
         IERC20(token).safeTransfer(owner(), amount);
         emit TokensRecovered(owner(), amount);
@@ -105,7 +105,7 @@ contract TeamContract is Ownable2Step, ReentrancyGuard, Pausable {
 
     /* ========== MEMBER ACTIONS ========== */
 
-    function claim() external nonReentrant whenNotPaused {
+    function claim() public nonReentrant whenNotPaused {
         address caller = msg.sender;
         if (!exists[caller]) revert NotMember();
         TeamMember storage tm = members[caller];
@@ -140,7 +140,7 @@ contract TeamContract is Ownable2Step, ReentrancyGuard, Pausable {
         return vested - tm.withdrawn;
     }
 
-    function vestedAmount(address _member) external view returns (uint256) {
+    function vestedAmount(address _member) public view returns (uint256) {
         if (!exists[_member]) revert NotMember();
         TeamMember storage tm = members[_member];
         return _vestedAmount(tm);
@@ -192,5 +192,9 @@ contract TeamContract is Ownable2Step, ReentrancyGuard, Pausable {
         withdrawn = tm.withdrawn;
         isActive = tm.isActive;
         claimable = claimableAmount(_member);
+    }
+
+    function isPaused() external view returns (bool) {
+        return paused();
     }
 }

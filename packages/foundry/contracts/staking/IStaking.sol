@@ -95,7 +95,7 @@ interface IStaking {
     
     function unstake(uint256 stakeId) external;
     
-    function withdraw(uint256 stakeId, uint256 rewardsAmount) external;
+    // function withdraw(uint256 stakeId, uint256 rewardsAmount) external;
 
     // EXTERNAL RESTRICTED FUNCTIONS  
     function pause() external;
