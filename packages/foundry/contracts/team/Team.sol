@@ -17,15 +17,15 @@ contract TeamContract is Ownable2Step, ReentrancyGuard, Pausable {
     uint256 private constant SECONDS_PER_MONTH = 30 days;
 
     struct TeamMember {
-        address memberAddr;       // unique key
+        address memberAddr;
         string name;
-        uint256 allocation;       // total allocated at creation
-        uint256 remaining;        // remaining allocation left to claim
-        uint256 cliffMonths;      // cliff in months
-        uint256 vestingMonths;    // vesting duration in months
-        uint256 startTimestamp;   // timestamp when added
-        uint256 withdrawn;        // already claimed
-        bool isActive;            // false => stops vesting
+        uint256 allocation;
+        uint256 remaining;
+        uint256 cliffMonths;
+        uint256 vestingMonths;
+        uint256 startTimestamp;
+        uint256 withdrawn;
+        bool isActive;
     }
 
     mapping(address => TeamMember) public members;
