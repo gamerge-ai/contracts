@@ -116,7 +116,7 @@ contract Staking is
             totalWithdrawal = principal + rewards;
         } else {
             isEarlyUnstake = true;
-            totalWithdrawal = principal - calculateEarlyWithdrawalPenalty(principal);
+            totalWithdrawal = principal - ((principal * EARLY_WITHDRAWAL_PENALTY) / PRECISION);
         }
 
         if (gmgToken.balanceOf(address(this)) < totalWithdrawal) {
@@ -177,12 +177,6 @@ contract Staking is
     ) external view override returns (StakeInfo memory) {
         if (stakeId >= userStakes[user].length) revert StakeNotFound();
         return userStakes[user][stakeId];
-    }
-
-    function calculateEarlyWithdrawalPenalty(
-        uint256 amount
-    ) public pure override returns (uint256) {
-        return (amount * EARLY_WITHDRAWAL_PENALTY) / PRECISION;
     }
 
     function getAvailableRewards(

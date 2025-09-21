@@ -114,7 +114,7 @@ interface IStaking {
     
     function getAvailableRewards(address user, uint256 stakeId) external view returns (uint256);
     
-    function calculateEarlyWithdrawalPenalty(uint256 amount) external pure returns (uint256);
+    // function calculateEarlyWithdrawalPenalty(uint256 amount) external pure returns (uint256);
     
     function getStakingPeriodDuration(StakingPeriod period) external pure returns (uint256);
     
