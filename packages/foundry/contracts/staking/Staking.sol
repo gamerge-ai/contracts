@@ -27,9 +27,8 @@ contract Staking is
     uint256 private constant TWELVE_MONTH_APY = 600;
 
     IERC20 public gmgToken;
-    
     uint256 public totalStaked;
-    
+
     mapping(address => StakeInfo[]) public userStakes;
 
     modifier validStakeId(address user, uint256 stakeId) {
@@ -61,7 +60,6 @@ contract Staking is
         gmgToken = IERC20(params.gmgToken);
     }
 
-
     /*
     --------------------------
     ----------EXTERNAL STAKING FUNCTIONS----------
@@ -77,8 +75,10 @@ contract Staking is
 
         uint256 duration = getStakingPeriodDuration(period);
         uint256 maturityTime = block.timestamp + duration;
+        uint256 stakeId = userStakes[msg.sender].length;
 
         StakeInfo memory newStake = StakeInfo({
+            stakeId: stakeId,
             amount: amount,
             stakedAt: block.timestamp,
             maturityTime: maturityTime,
@@ -92,13 +92,7 @@ contract Staking is
 
         gmgToken.safeTransferFrom(msg.sender, address(this), amount);
 
-        emit Staked(
-            msg.sender,
-            userStakes[msg.sender].length - 1,
-            amount,
-            period,
-            maturityTime
-        );
+        emit Staked(msg.sender, stakeId, amount, period, maturityTime);
     }
 
     function unstake(
@@ -154,12 +148,9 @@ contract Staking is
         uint256 amount
     ) external override onlyOwner {
         if (to == address(0)) revert ZeroAddress();
-        
         token.safeTransfer(to, amount);
-        
         emit EmergencyWithdrawal(token, to, amount);
     }
-
 
     /*
     --------------------------
@@ -234,7 +225,6 @@ contract Staking is
     function getTotalStaked() external view override returns (uint256) {
         return totalStaked;
     }
-
 
     /*
     --------------------------

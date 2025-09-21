@@ -13,6 +13,7 @@ interface IStaking {
     }
 
     struct StakeInfo {
+        uint256 stakeId;
         uint256 amount;           // Amount of GMG tokens staked
         uint256 stakedAt;         // Timestamp when staked
         uint256 maturityTime;     // Timestamp when stake matures
