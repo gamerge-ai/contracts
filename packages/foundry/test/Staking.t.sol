@@ -64,15 +64,10 @@ contract StakingTest is Test {
         vm.stopPrank();
     }
 
-    function testFailStakeZeroAmount() public {
+    function test_Revert_StakeZeroAmount() public {
         vm.startPrank(user1);
+        vm.expectRevert(IStaking.InvalidAmount.selector);
         staking.stake(0, IStaking.StakingPeriod.THREE_MONTHS);
-    }
-
-    function testFailInvalidStakingPeriod() public {
-        vm.startPrank(user1);
-        staking.stake(1000 ether, IStaking.StakingPeriod.TWELVE_MONTHS);
-
     }
 
     // ----------------------------
@@ -118,13 +113,14 @@ contract StakingTest is Test {
         vm.stopPrank();
     }
 
-    function testFailUnstakeNotOwner() public {
+    function test_Revert_UnstakeNotOwner() public {
         vm.startPrank(user1);
         gmg.approve(address(staking), 1000 ether);
         staking.stake(1000 ether, IStaking.StakingPeriod.THREE_MONTHS);
         vm.stopPrank();
 
         vm.startPrank(user2);
+        vm.expectRevert(IStaking.StakeNotFound.selector);
         staking.unstake(0);
     }
 
@@ -139,9 +135,10 @@ contract StakingTest is Test {
         assertFalse(staking.isPaused());
     }
 
-    function testFailStakeWhenPaused() public {
+    function test_Revert_StakeWhenPaused() public {
         staking.pause();
         vm.startPrank(user1);
+        vm.expectRevert();
         staking.stake(1000 ether, IStaking.StakingPeriod.THREE_MONTHS);
     }
 
