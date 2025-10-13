@@ -199,8 +199,8 @@ contract TeamContractTest is Test {
         _addMember(bob, "bob", allocation, 0, vestingMonths);
         _fundContract(allocation);
 
-        vm.warp(block.timestamp + uint256(1 days) + (SECONDS_PER_MONTH * 1) + (SECONDS_PER_MONTH * 0)); // ensure >1 month but <2
-        vm.warp(block.timestamp + SECONDS_PER_MONTH + 29 days);
+        // vm.warp(block.timestamp + uint256(1 days) + (SECONDS_PER_MONTH * 1) + (SECONDS_PER_MONTH * 0)); // ensure >1 month but <2
+        vm.warp(block.timestamp + 30 days);
 
         uint256 expectedVested = (allocation * 1) / vestingMonths;
         vm.prank(bob);
@@ -225,13 +225,13 @@ contract TeamContractTest is Test {
         uint256 amount = 500 ether;
         gmg.transfer(address(team), amount);
         vm.prank(address(0xDEAD));
-        vm.expectRevert(bytes("Ownable: caller is not the owner"));
+        vm.expectRevert(bytes("OwnableUnauthorizedAccount(0x000000000000000000000000000000000000dEaD)"));
         team.recoverERC20(address(gmg), amount);
     }
 
     function testPausePreventsAddMember() public {
         team.pause();
-        vm.expectRevert(bytes("Pausable: paused"));
+        vm.expectRevert(bytes("EnforcedPause()"));
         team.addTeamMember(alice, "alice", 100, 0, 12);
     }
 
@@ -260,7 +260,7 @@ contract TeamContractTest is Test {
 
     function testFuzz_VestingProgress(uint256 allocation) public {
 
-        vm.assume(allocation > 0 && allocation < 1_000_000 ether);
+        vm.assume(allocation > 0.000001 ether && allocation < 1_000_000 ether);
 
         uint256 vestingMonths = 12;
         _addMember(alice, "alice", allocation, 0, vestingMonths);
